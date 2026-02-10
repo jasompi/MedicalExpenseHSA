@@ -66,12 +66,19 @@ class ReceiptProcessor:
             pdf_path: Path to receipt PDF
 
         Returns:
-            True if successful
+            True if successful, False if already processed
 
         Raises:
             Exception: Any exception during processing will propagate
         """
         file_name = pdf_path.name
+
+        # Check if already processed
+        processed_files = self.csv_manager.get_processed_files()
+        if file_name in processed_files:
+            logger.info("Receipt already processed, skipping", file_name=file_name)
+            print(f"⏭️  Receipt already processed: {file_name}")
+            return False
 
         logger.info("Processing receipt", file_name=file_name, path=str(pdf_path))
 

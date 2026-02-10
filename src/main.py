@@ -11,6 +11,7 @@ from src.core.signal_handler import GracefulShutdown
 from src.processors.llm_extractor import ReceiptExtractor
 from src.processors.receipt_processor import ReceiptProcessor
 from src.utils.logger import setup_logger, get_logger
+from src.utils.path_utils import deduce_csv_path
 
 # Load environment variables from .env file
 load_dotenv()
@@ -52,63 +53,42 @@ def process(ctx, receipts_path, csv_file):
     GracefulShutdown.setup()
 
     try:
-        # Determine if single file or folder
+        # Determine mode (single file vs folder)
         is_single_file = receipts_path.is_file() and receipts_path.suffix.lower() == '.pdf'
 
+        # Deduce CSV path
+        csv_path = deduce_csv_path(receipts_path, csv_file)
+
+        # Determine receipts folder
+        receipts_folder = receipts_path.parent if is_single_file else receipts_path
+
+        # Print banner
+        mode = "Single Receipt Processing (Debug Mode)" if is_single_file else "Receipt Processing"
+        click.echo(f"\n{'=' * 60}")
+        click.echo(f"HSA Agent - {mode}")
+        click.echo(f"{'=' * 60}")
         if is_single_file:
-            # Single PDF file mode
-            pdf_file = receipts_path
-            receipts_folder = pdf_file.parent
-
-            # Default CSV to same basename as PDF if not specified
-            if csv_file is None:
-                csv_path = pdf_file.with_suffix('.csv')
-            else:
-                csv_path = Path(csv_file)
-
-            click.echo(f"\n{'=' * 60}")
-            click.echo(f"HSA Agent - Single Receipt Processing (Debug Mode)")
-            click.echo(f"{'=' * 60}")
-            click.echo(f"PDF file: {pdf_file}")
-            click.echo(f"CSV output: {csv_path}")
-            click.echo(f"{'=' * 60}\n")
-
-            # Initialize components
-            csv_manager = CSVManager(csv_path)
-            llm_extractor = ReceiptExtractor()  # Auto-detects provider from env
-            processor = ReceiptProcessor(receipts_folder, csv_manager, llm_extractor)
-
-            # Process single receipt
-            asyncio.run(processor.process_single_receipt(pdf_file))
-
-            click.echo("\n✓ Processing complete!")
-            click.echo(f"Data saved to: {csv_path}")
-
+            click.echo(f"PDF file: {receipts_path}")
         else:
-            # Folder mode
-            receipts_folder = receipts_path
-
-            # Default CSV to receipts folder if not specified
-            if csv_file is None:
-                csv_path = receipts_folder / 'expenses.csv'
-            else:
-                csv_path = Path(csv_file)
-
-            click.echo(f"\n{'=' * 60}")
-            click.echo(f"HSA Agent - Receipt Processing")
-            click.echo(f"{'=' * 60}")
             click.echo(f"Receipts folder: {receipts_folder}")
-            click.echo(f"CSV output: {csv_path}")
-            click.echo(f"{'=' * 60}\n")
+        click.echo(f"CSV output: {csv_path}")
+        click.echo(f"{'=' * 60}\n")
 
-            # Initialize components
-            csv_manager = CSVManager(csv_path)
-            llm_extractor = ReceiptExtractor()  # Auto-detects provider from env
-            processor = ReceiptProcessor(receipts_folder, csv_manager, llm_extractor)
+        # Initialize components (same for both modes)
+        csv_manager = CSVManager(csv_path)
+        llm_extractor = ReceiptExtractor()
+        processor = ReceiptProcessor(receipts_folder, csv_manager, llm_extractor)
 
-            # Process receipts
+        # Process based on mode
+        if is_single_file:
+            success = asyncio.run(processor.process_single_receipt(receipts_path))
+            if success:
+                click.echo(f"\n✓ Processing complete!")
+                click.echo(f"Data saved to: {csv_path}")
+            else:
+                click.echo(f"\n⏭️  Receipt already processed, skipped")
+        else:
             asyncio.run(processor.process_receipts())
-
             click.echo("\n✓ Processing complete!")
 
     except KeyboardInterrupt:
@@ -145,12 +125,17 @@ def run(ctx, receipts_path, csv_file):
 
 
 @cli.command()
-@click.option('--csv', 'csv_file', default='./expenses.csv', help='CSV file path')
+@click.argument('path', type=click.Path(exists=True, path_type=Path))
 @click.pass_context
-def status(ctx, csv_file):
-    """Show status of expenses (processed, claimed, errors)."""
+def status(ctx, path):
+    """Show status of expenses (processed, claimed, errors).
+
+    PATH: Path to folder (uses expenses.csv), a CSV file, or a PDF file (uses corresponding .csv)
+    """
     try:
-        csv_path = Path(csv_file)
+        # Deduce CSV path
+        csv_path = deduce_csv_path(path)
+
         csv_manager = CSVManager(csv_path)
 
         # Get statistics
@@ -177,6 +162,14 @@ def status(ctx, csv_file):
             click.echo("Unclaimed expenses:")
             for expense in unclaimed:
                 click.echo(f"  - {expense.file_name}: ${expense.amount_to_claim} ({expense.provider})")
+            click.echo("")
+
+        # Show summary (only for multiple expenses)
+        if stats['total_expenses'] > 1:
+            click.echo(f"Summary:")
+            click.echo(f"  Total expense: ${stats['total_amount']:.2f}")
+            click.echo(f"  Already claimed: ${stats['claimed_amount']:.2f}")
+            click.echo(f"  To be claimed: ${stats['unclaimed_amount']:.2f}")
             click.echo("")
 
     except Exception as e:
