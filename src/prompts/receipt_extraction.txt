@@ -1,0 +1,91 @@
+You are analyzing a medical receipt/bill PDF document. Your task is to extract EXACT information as it appears on the document.
+
+⚠️ CRITICAL ANTI-HALLUCINATION RULES:
+1. NEVER use information from the filename - ONLY read the PDF document
+2. NEVER make up, guess, or fabricate ANY information
+3. NEVER create fictional addresses - if address is not clearly visible, return "Not Found"
+4. NEVER use email addresses as physical addresses
+5. If you cannot find specific information on the document, return "Not Found" for that field
+6. DO NOT infer or assume - only extract what you can SEE
+
+EXTRACT THE FOLLOWING INFORMATION:
+
+1. **Provider Name**
+   - The exact name of the medical provider/facility as shown ON THE RECEIPT
+   - Look at the TOP of the receipt, letterhead, or "Bill To" section
+   - DO NOT use any names from the filename
+   - Examples: "EnVision Eye Care", "Costco Pharmacy", "Sutter Health"
+   - If not clearly visible: return "Not Found"
+
+2. **Provider Address**
+   - The COMPLETE physical address EXACTLY as shown on the receipt
+   - Must be a real street address with: street number, street name, city, state, ZIP
+   - Look in: letterhead, footer, "Remit To", or contact information section
+   - DO NOT make up addresses like "123 Main St"
+   - DO NOT use email addresses
+   - DO NOT use phone numbers
+   - DO NOT fabricate city names like "Sight City" or "Optics City"
+   - If the receipt does not show a complete physical address: return "Not Found"
+   - Examples of valid addresses:
+     * "1234 Market Street, San Francisco, CA 94102"
+     * "500 El Camino Real, Suite 200, Palo Alto, CA 94301"
+   - Examples of INVALID addresses (return "Not Found" instead):
+     * "123 Vision Blvd, Sight City, CA 90210" (fictional)
+     * "contact@provider.com" (email, not address)
+     * "1-800-555-1234" (phone number)
+
+3. **Date of Service**
+   - The date when medical service was provided
+   - Look for "Date of Service", "Service Date", or "DOS"
+   - If not found, use the receipt/invoice date
+   - Format: YYYY-MM-DD
+
+4. **Amount Paid by Patient (MOST IMPORTANT)**
+   - This is the TOTAL amount the PATIENT paid INCLUDING TAX
+   - Read the ENTIRE receipt to find the correct amount
+   - Look for these terms (in order of priority):
+     a) "Patient Responsibility" or "Patient Balance"
+     b) "Amount Due" or "Balance Due"
+     c) "Total" or "Total Amount" or "Grand Total"
+     d) "Amount Paid" or "Payment"
+   - INCLUDE sales tax in the amount
+   - This should be the FINAL total, not subtotal
+   - EXCLUDE amounts paid by insurance
+   - CRITICAL: Return ONLY the numeric value without ANY currency symbols, commas, or text
+   - Examples of correct format: 21.86, 160.89, 1234.56
+   - If you see "$21.86", return: 21.86
+   - If you see "1,234.56", return: 1234.56
+
+VERIFICATION CHECKLIST:
+Before returning your answer, verify:
+- [ ] Did I read the ENTIRE PDF document?
+- [ ] Is the provider name from the RECEIPT (not filename)?
+- [ ] Is the address a REAL physical address from the receipt (or "Not Found")?
+- [ ] Is the amount the TOTAL including tax that the patient paid?
+- [ ] Did I remove all currency symbols from the amount?
+
+RETURN FORMAT:
+
+You MUST return a valid JSON object with EXACTLY these fields:
+
+{
+  "provider": "exact provider name as string",
+  "provider_address": "complete physical address as string OR 'Not Found'",
+  "date_of_service": "date in YYYY-MM-DD format",
+  "amount_to_claim": "numeric value only, no currency symbols (e.g., 21.86, 1234.56)"
+}
+
+EXAMPLE VALID RESPONSE:
+{
+  "provider": "EnVision Eye Care",
+  "provider_address": "123 Main Street, San Francisco, CA 94102",
+  "date_of_service": "2026-01-15",
+  "amount_to_claim": "160.89"
+}
+
+CRITICAL JSON RULES:
+- Return ONLY the JSON object, no other text
+- Use double quotes for strings
+- date_of_service must be YYYY-MM-DD format
+- amount_to_claim must be a plain number (no $, no commas)
+- All fields are required
