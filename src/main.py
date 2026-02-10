@@ -41,39 +41,75 @@ def cli(ctx, log_level, log_file):
 
 
 @cli.command()
-@click.argument('receipts_folder', type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path))
-@click.option('--csv', 'csv_file', default=None, help='CSV output file path (default: expenses.csv in receipts folder)')
+@click.argument('receipts_path', type=click.Path(exists=True, path_type=Path))
+@click.option('--csv', 'csv_file', default=None, help='CSV output file path (default: expenses.csv in folder or {basename}.csv for single file)')
 @click.pass_context
-def process(ctx, receipts_folder, csv_file):
+def process(ctx, receipts_path, csv_file):
     """Process receipts and extract data to CSV.
 
-    RECEIPTS_FOLDER: Path to folder containing receipt PDFs
+    RECEIPTS_PATH: Path to folder containing receipt PDFs OR path to a single PDF file
     """
     GracefulShutdown.setup()
 
     try:
-        # Default CSV to receipts folder if not specified
-        if csv_file is None:
-            csv_path = receipts_folder / 'expenses.csv'
+        # Determine if single file or folder
+        is_single_file = receipts_path.is_file() and receipts_path.suffix.lower() == '.pdf'
+
+        if is_single_file:
+            # Single PDF file mode
+            pdf_file = receipts_path
+            receipts_folder = pdf_file.parent
+
+            # Default CSV to same basename as PDF if not specified
+            if csv_file is None:
+                csv_path = pdf_file.with_suffix('.csv')
+            else:
+                csv_path = Path(csv_file)
+
+            click.echo(f"\n{'=' * 60}")
+            click.echo(f"HSA Agent - Single Receipt Processing (Debug Mode)")
+            click.echo(f"{'=' * 60}")
+            click.echo(f"PDF file: {pdf_file}")
+            click.echo(f"CSV output: {csv_path}")
+            click.echo(f"{'=' * 60}\n")
+
+            # Initialize components
+            csv_manager = CSVManager(csv_path)
+            llm_extractor = ReceiptExtractor()  # Auto-detects provider from env
+            processor = ReceiptProcessor(receipts_folder, csv_manager, llm_extractor)
+
+            # Process single receipt
+            asyncio.run(processor.process_single_receipt(pdf_file))
+
+            click.echo("\n✓ Processing complete!")
+            click.echo(f"Data saved to: {csv_path}")
+
         else:
-            csv_path = Path(csv_file)
+            # Folder mode
+            receipts_folder = receipts_path
 
-        click.echo(f"\n{'=' * 60}")
-        click.echo(f"HSA Agent - Receipt Processing")
-        click.echo(f"{'=' * 60}")
-        click.echo(f"Receipts folder: {receipts_folder}")
-        click.echo(f"CSV output: {csv_path}")
-        click.echo(f"{'=' * 60}\n")
+            # Default CSV to receipts folder if not specified
+            if csv_file is None:
+                csv_path = receipts_folder / 'expenses.csv'
+            else:
+                csv_path = Path(csv_file)
 
-        # Initialize components
-        csv_manager = CSVManager(csv_path)
-        llm_extractor = ReceiptExtractor()  # Auto-detects provider from env
-        processor = ReceiptProcessor(receipts_folder, csv_manager, llm_extractor)
+            click.echo(f"\n{'=' * 60}")
+            click.echo(f"HSA Agent - Receipt Processing")
+            click.echo(f"{'=' * 60}")
+            click.echo(f"Receipts folder: {receipts_folder}")
+            click.echo(f"CSV output: {csv_path}")
+            click.echo(f"{'=' * 60}\n")
 
-        # Process receipts
-        asyncio.run(processor.process_receipts())
+            # Initialize components
+            csv_manager = CSVManager(csv_path)
+            llm_extractor = ReceiptExtractor()  # Auto-detects provider from env
+            processor = ReceiptProcessor(receipts_folder, csv_manager, llm_extractor)
 
-        click.echo("\n✓ Processing complete!")
+            # Process receipts
+            asyncio.run(processor.process_receipts())
+
+            click.echo("\n✓ Processing complete!")
 
     except KeyboardInterrupt:
         click.echo("\n\nInterrupted by user.")
@@ -93,16 +129,16 @@ def submit(ctx):
 
 
 @cli.command()
-@click.argument('receipts_folder', type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path))
-@click.option('--csv', 'csv_file', default=None, help='CSV output file path (default: expenses.csv in receipts folder)')
+@click.argument('receipts_path', type=click.Path(exists=True, path_type=Path))
+@click.option('--csv', 'csv_file', default=None, help='CSV output file path (default: expenses.csv in folder or {basename}.csv for single file)')
 @click.pass_context
-def run(ctx, receipts_folder, csv_file):
+def run(ctx, receipts_path, csv_file):
     """Run full workflow: process receipts AND submit claims.
 
-    RECEIPTS_FOLDER: Path to folder containing receipt PDFs
+    RECEIPTS_PATH: Path to folder containing receipt PDFs OR path to a single PDF file
     """
     # First process receipts
-    ctx.invoke(process, receipts_folder=receipts_folder, csv_file=csv_file)
+    ctx.invoke(process, receipts_path=receipts_path, csv_file=csv_file)
 
     # Then submit claims
     ctx.invoke(submit)

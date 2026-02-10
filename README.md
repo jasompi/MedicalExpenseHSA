@@ -44,6 +44,10 @@ ANTHROPIC_API_KEY=sk-ant-your_key_here
 # Process receipts from a folder
 uv run python -m src.main process /path/to/receipts
 
+# Process a single PDF file (useful for debugging)
+uv run python -m src.main process /path/to/receipts/receipt.pdf
+# This creates receipt.csv in the same directory
+
 # Or use the shorthand
 uv run python main.py process /path/to/receipts
 ```
@@ -63,18 +67,23 @@ uv run python -m src.main status --csv /path/to/expenses.csv
 ### Commands
 
 ```bash
-# Process receipts and extract data to CSV
+# Process receipts from a folder - extracts data to CSV
 # Creates expenses.csv in the receipts folder by default
 uv run python -m src.main process [RECEIPTS_FOLDER]
 
-# Specify a custom CSV location if needed
+# Process a SINGLE PDF file (debug mode)
+# Creates a CSV with the same basename as the PDF (e.g., receipt.pdf -> receipt.csv)
+uv run python -m src.main process [PATH_TO_PDF_FILE]
+
+# Specify a custom CSV location if needed (works for both folder and file modes)
 uv run python -m src.main process [RECEIPTS_FOLDER] --csv /path/to/expenses.csv
+uv run python -m src.main process [PATH_TO_PDF_FILE] --csv /path/to/custom.csv
 
 # Submit unclaimed expenses (Phase 2)
 uv run python -m src.main submit
 
 # Run full workflow (process + submit)
-uv run python -m src.main run [RECEIPTS_FOLDER]
+uv run python -m src.main run [RECEIPTS_FOLDER or PATH_TO_PDF_FILE]
 
 # Show expense status
 uv run python -m src.main status
@@ -85,12 +94,19 @@ uv run python -m src.main status --csv /path/to/expenses.csv
 
 ### Receipt Processing
 
+**Folder Mode:**
 The agent:
 1. Scans the receipts folder for PDF files
 2. Skips files already in `expenses.csv`
 3. Sends each PDF to the LLM for vision-based extraction
 4. Extracts: provider, address, date, amount paid by patient
 5. Saves to `expenses.csv` in the same folder as the receipts
+
+**Single File Mode (Debug):**
+When you specify a single PDF file instead of a folder:
+1. Processes only that one PDF file
+2. Creates a CSV file with the same basename (e.g., `receipt.pdf` → `receipt.csv`)
+3. Useful for debugging extraction issues with specific receipts
 
 **Important**: The agent only extracts amounts paid by the patient (out-of-pocket), not insurance payments.
 

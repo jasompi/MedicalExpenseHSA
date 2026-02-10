@@ -37,9 +37,14 @@ cp .env.example .env
 ## Running the Application
 
 ```bash
-# Process receipts from a folder (receipts folder is required)
+# Process receipts from a folder
 # CSV file is created in the receipts folder by default
 python -m src.main process /path/to/receipts
+
+# Process a SINGLE PDF file (debug mode)
+# CSV file is created with the same basename as the PDF
+python -m src.main process /path/to/receipts/receipt.pdf
+# This creates receipt.csv in the same directory
 
 # Check expense status
 python -m src.main status
@@ -58,9 +63,13 @@ Or with uv:
 
 ```bash
 uv run python -m src.main process /path/to/receipts
+uv run python -m src.main process /path/to/receipts/receipt.pdf
 ```
 
-**Note**: By default, `expenses.csv` is created in the same folder as the receipts. You can override this with the `--csv` option.
+**CSV Output Defaults**:
+- **Folder mode**: `expenses.csv` is created in the receipts folder
+- **Single file mode**: `{basename}.csv` is created in the same directory as the PDF (e.g., `receipt.pdf` → `receipt.csv`)
+- Both modes: Override with the `--csv` option
 
 ## Project Structure
 
