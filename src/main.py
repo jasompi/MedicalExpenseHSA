@@ -44,8 +44,9 @@ def cli(ctx, log_level, log_file):
 @cli.command()
 @click.argument('receipts_path', type=click.Path(exists=True, path_type=Path))
 @click.option('--csv', 'csv_file', default=None, help='CSV output file path (default: expenses.csv in folder or {basename}.csv for single file)')
+@click.option('-f', '--force', is_flag=True, help='Reprocess all files, overriding existing results. Skips claimed expenses.')
 @click.pass_context
-def process(ctx, receipts_path, csv_file):
+def process(ctx, receipts_path, csv_file, force):
     """Process receipts and extract data to CSV.
 
     RECEIPTS_PATH: Path to folder containing receipt PDFs OR path to a single PDF file
@@ -77,16 +78,17 @@ def process(ctx, receipts_path, csv_file):
         # Initialize components (same for both modes)
         csv_manager = CSVManager(csv_path)
         llm_extractor = ReceiptExtractor()
-        processor = ReceiptProcessor(receipts_folder, csv_manager, llm_extractor)
+        processor = ReceiptProcessor(receipts_folder, csv_manager, llm_extractor, force=force)
 
         # Process based on mode
         if is_single_file:
-            success = asyncio.run(processor.process_single_receipt(receipts_path))
+            success, is_update = asyncio.run(processor.process_single_receipt(receipts_path))
             if success:
-                click.echo(f"\n✓ Processing complete!")
+                action = "updated" if is_update else "processed"
+                click.echo(f"\n✓ Processing complete! Receipt {action}.")
                 click.echo(f"Data saved to: {csv_path}")
             else:
-                click.echo(f"\n⏭️  Receipt already processed, skipped")
+                click.echo(f"\n⏭️  Receipt skipped (already processed or claimed)")
         else:
             asyncio.run(processor.process_receipts())
             click.echo("\n✓ Processing complete!")

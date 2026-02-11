@@ -18,18 +18,26 @@ EXTRACT THE FOLLOWING INFORMATION:
    - If not clearly visible: return "Not Found"
 
 2. **Provider Address**
-   - The COMPLETE physical address EXACTLY as shown on the receipt
+   - The COMPLETE physical address from the receipt
    - Must be a real street address with: street number, street name, city, state, ZIP
+   - **CRITICAL FORMAT REQUIREMENT**: Output as SINGLE LINE with comma separation
+   - **Format structure**: "Street Address, City, State ZIP"
+   - DO NOT use newlines or multiline format (even if receipt shows it that way)
    - Look in: letterhead, footer, "Remit To", or contact information section
+
    - DO NOT make up addresses like "123 Main St"
    - DO NOT use email addresses
    - DO NOT use phone numbers
    - DO NOT fabricate city names like "Sight City" or "Optics City"
    - If the receipt does not show a complete physical address: return "Not Found"
-   - Examples of valid addresses:
+
+   - Examples of valid addresses (single line, comma-separated):
+     * "1241 E Hillsdale Blvd Ste 220, Foster City, CA 94404"
      * "1234 Market Street, San Francisco, CA 94102"
      * "500 El Camino Real, Suite 200, Palo Alto, CA 94301"
-   - Examples of INVALID addresses (return "Not Found" instead):
+
+   - Examples of INVALID formats (return "Not Found" instead):
+     * Multiline addresses (use single line even if receipt is multiline)
      * "123 Vision Blvd, Sight City, CA 90210" (fictional)
      * "contact@provider.com" (email, not address)
      * "1-800-555-1234" (phone number)
@@ -61,6 +69,8 @@ Before returning your answer, verify:
 - [ ] Did I read the ENTIRE PDF document?
 - [ ] Is the provider name from the RECEIPT (not filename)?
 - [ ] Is the address a REAL physical address from the receipt (or "Not Found")?
+- [ ] Is the address in SINGLE LINE format: "Street, City, State ZIP"?
+- [ ] Did I remove any newlines from the address?
 - [ ] Is the amount the TOTAL including tax that the patient paid?
 - [ ] Did I remove all currency symbols from the amount?
 
@@ -70,7 +80,7 @@ You MUST return a valid JSON object with EXACTLY these fields:
 
 {
   "provider": "exact provider name as string",
-  "provider_address": "complete physical address as string OR 'Not Found'",
+  "provider_address": "complete physical address as SINGLE LINE (Street, City, State ZIP) OR 'Not Found'",
   "date_of_service": "date in YYYY-MM-DD format",
   "amount_to_claim": "numeric value only, no currency symbols (e.g., 21.86, 1234.56)"
 }
@@ -78,7 +88,7 @@ You MUST return a valid JSON object with EXACTLY these fields:
 EXAMPLE VALID RESPONSE:
 {
   "provider": "EnVision Eye Care",
-  "provider_address": "123 Main Street, San Francisco, CA 94102",
+  "provider_address": "1241 E Hillsdale Blvd Ste 220, Foster City, CA 94404",
   "date_of_service": "2026-01-15",
   "amount_to_claim": "160.89"
 }
@@ -88,4 +98,5 @@ CRITICAL JSON RULES:
 - Use double quotes for strings
 - date_of_service must be YYYY-MM-DD format
 - amount_to_claim must be a plain number (no $, no commas)
+- provider_address must be single line with format: "Street, City, State ZIP"
 - All fields are required
