@@ -177,15 +177,76 @@ def validate(ctx, receipts_path, csv_file):
 
 
 @cli.command()
+@click.argument('path', type=click.Path(exists=True, path_type=Path))
 @click.pass_context
-def submit(ctx):
+def submit(ctx, path):
     """Submit unclaimed expenses to Optum Bank.
 
-    Opens browser and automates claim submission for all unclaimed expenses in CSV.
+    PATH: Path to folder (uses expenses.csv), a CSV file, or a PDF file (uses corresponding .csv)
+
+    Opens Chrome browser in visible mode. You'll need to sign in manually if not already signed in.
     """
-    click.echo("\n⚠️  Claim submission feature coming in Phase 2!")
-    click.echo("This will automate filing claims on the Optum Bank website.\n")
-    sys.exit(1)
+    GracefulShutdown.setup()
+
+    try:
+        # Deduce CSV path
+        csv_path = deduce_csv_path(path)
+
+        # Deduce receipts folder
+        if path.is_dir():
+            receipts_folder = path
+        elif path.suffix.lower() == '.pdf':
+            receipts_folder = path.parent
+        elif path.suffix.lower() == '.csv':
+            receipts_folder = path.parent
+        else:
+            receipts_folder = path.parent
+
+        # Print banner
+        click.echo(f"\n{'=' * 60}")
+        click.echo("HSA Agent - Claim Submission")
+        click.echo(f"{'=' * 60}")
+        click.echo(f"CSV file: {csv_path}")
+        click.echo(f"Receipts folder: {receipts_folder}")
+        click.echo(f"{'=' * 60}\n")
+
+        # Initialize components
+        csv_manager = CSVManager(csv_path)
+
+        # Check for unclaimed expenses
+        unclaimed_count = csv_manager.get_statistics()['unclaimed']
+        if unclaimed_count == 0:
+            click.echo("✓ No unclaimed expenses found. Nothing to submit.\n")
+            return
+
+        click.echo(f"Found {unclaimed_count} unclaimed expense(s) to submit.\n")
+
+        # Import here to avoid loading playwright if not needed
+        from src.automation.claim_submitter import ClaimSubmitter
+
+        # Create submitter
+        submitter = ClaimSubmitter(
+            csv_manager=csv_manager,
+            receipts_folder=receipts_folder,
+        )
+
+        # Run submission
+        stats = asyncio.run(submitter.submit_all_claims())
+
+        # Final message
+        if stats['submitted'] > 0:
+            click.echo(f"\n✓ Submission complete! {stats['submitted']} claim(s) filed.")
+        else:
+            click.echo(f"\n⚠️  No claims were submitted.")
+
+    except KeyboardInterrupt:
+        click.echo("\n\nInterrupted by user.")
+        sys.exit(0)
+    except Exception as e:
+        click.echo(f"\n❌ Error: {e}", err=True)
+        if logger:
+            logger.error("Submit command failed", exc_info=True)
+        sys.exit(1)
 
 
 @cli.command()
@@ -200,8 +261,8 @@ def run(ctx, receipts_path, csv_file):
     # First process receipts
     ctx.invoke(process, receipts_path=receipts_path, csv_file=csv_file)
 
-    # Then submit claims
-    ctx.invoke(submit)
+    # Then submit claims (pass receipts_path as 'path')
+    ctx.invoke(submit, path=receipts_path)
 
 
 @cli.command()
