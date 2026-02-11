@@ -1,8 +1,9 @@
 """Receipt processor orchestration."""
 
 import asyncio
+import re
 from pathlib import Path
-from typing import List
+from typing import List, Tuple, Optional
 from datetime import datetime
 from src.core.models import ExpenseRecord
 from src.core.csv_manager import CSVManager
@@ -35,6 +36,61 @@ class ReceiptProcessor:
         self.csv_manager = csv_manager
         self.llm_extractor = llm_extractor
         self.force = force
+
+    def _validate_address(self, address: str) -> Tuple[bool, Optional[str]]:
+        """Validate extracted address for completeness and hallucination patterns.
+
+        Args:
+            address: The extracted provider_address field
+
+        Returns:
+            Tuple of (is_valid, warning_message)
+            - is_valid: False if address needs review, True otherwise
+            - warning_message: Description of the issue, or None if valid
+        """
+        # If address is "Not Found", that's expected and valid
+        if address == "Not Found":
+            return (True, None)
+
+        # Check for obvious placeholder patterns that indicate hallucination
+        placeholder_patterns = [
+            r'123\s+Main\s+St',
+            r'Vision\s+Blvd',
+            r'Optics\s+City',
+            r'Sight\s+City',
+            r'Example\s+Street',
+            r'Sample\s+Ave',
+        ]
+
+        for pattern in placeholder_patterns:
+            if re.search(pattern, address, re.IGNORECASE):
+                return (False, f"Address contains placeholder pattern: '{address}'")
+
+        # Check if address looks like an email
+        if '@' in address:
+            return (False, f"Address appears to be an email, not physical address: '{address}'")
+
+        # Check if address looks like a phone number
+        if re.search(r'\d{3}[-.\s]?\d{3}[-.\s]?\d{4}', address):
+            return (False, f"Address appears to be a phone number, not physical address: '{address}'")
+
+        # Check for address completeness (Street, City, State ZIP)
+        # A complete address should have: street number, city name, state, and ZIP code
+        has_number = bool(re.search(r'\d+', address))
+        has_state = bool(re.search(r'\b[A-Z]{2}\b', address))  # Two-letter state code
+        has_zip = bool(re.search(r'\b\d{5}\b', address))  # 5-digit ZIP code
+
+        if not has_number:
+            return (False, f"Address missing street number (may be incomplete): '{address}'")
+
+        if not has_state:
+            return (False, f"Address missing state code (may be incomplete): '{address}'")
+
+        if not has_zip:
+            return (False, f"Address missing ZIP code (may be incomplete): '{address}'")
+
+        # Address appears complete and valid
+        return (True, None)
 
     def find_receipt_pdfs(self) -> List[Path]:
         """Find all PDF files in the receipts folder.
@@ -105,15 +161,30 @@ class ReceiptProcessor:
         extracted = await self.llm_extractor.extract_expense(pdf_path, file_name)
         expense = ExpenseRecord.from_extracted(extracted, file_name)
 
+        # Validate the extracted address
+        address_valid, address_warning = self._validate_address(extracted.provider_address)
+        if not address_valid and address_warning:
+            # Add warning to error history
+            expense.add_error(f"Address validation warning: {address_warning}")
+            logger.warning(
+                "address_validation_failed",
+                file_name=file_name,
+                address=extracted.provider_address,
+                warning=address_warning,
+            )
+            print(f"⚠️  Address validation warning: {address_warning}")
+
+
         # Add or update CSV
         if is_update:
-            # Update existing record (preserve claimed status and error history)
+            # Update existing record (preserve claimed status but update error history if warnings were added)
             updates = {
                 'provider': expense.provider,
                 'provider_address': expense.provider_address,
                 'date_of_service': expense.date_of_service,
                 'amount_to_claim': expense.amount_to_claim,
                 'processing_timestamp': expense.processing_timestamp,
+                'error_history': expense.error_history,  # Include error_history to capture validation warnings
             }
             self.csv_manager.update_expense(file_name, updates)
             logger.info(
