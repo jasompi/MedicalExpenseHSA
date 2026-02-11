@@ -78,7 +78,7 @@ medicalexpensehsa/
 ├── src/                 # All source code
 │   ├── core/            # Core data models and state management
 │   │   ├── models.py            # ExtractedExpense and ExpenseRecord models
-│   │   ├── csv_manager.py       # Thread-safe atomic CSV operations
+│   │   ├── csv_manager.py       # Atomic CSV operations
 │   │   └── signal_handler.py    # Graceful Ctrl-C handling
 │   ├── processors/      # Receipt processing pipeline
 │   │   ├── llm_extractor.py     # Vision-based extraction with pydantic-ai
@@ -110,7 +110,7 @@ medicalexpensehsa/
 
 - **CSV as source of truth**: expenses.csv tracks all processed receipts
 - **Atomic operations**: All CSV writes use temp file + rename for atomicity
-- **Thread-safe**: File locks prevent concurrent access issues
+- **Sequential processing**: Single-threaded asyncio model
 - **Resume capability**: Rerunning skips already-processed files
 - **Error history**: JSON-encoded error log per expense
 
@@ -137,7 +137,6 @@ temp_path.replace(self.csv_path)
 
 This ensures that:
 - No partial writes if process is killed
-- Safe for concurrent access (with file locks)
 - CSV is always in valid state
 
 ### LLM Vision Processing
