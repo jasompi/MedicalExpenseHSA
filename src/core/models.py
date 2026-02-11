@@ -2,8 +2,9 @@
 
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Optional
+from typing import Optional, Dict, Tuple, Any, List
 from pydantic import BaseModel, Field, field_validator
+from dataclasses import dataclass
 import json
 
 
@@ -120,3 +121,25 @@ class ExpenseRecord(BaseModel):
             "claim_confirmation_id": self.claim_confirmation_id or "",
             "error_history": self.error_history,
         }
+
+
+@dataclass
+class ValidationResult:
+    """Result of validating a single receipt."""
+    file_name: str
+    passed: bool
+    original: ExpenseRecord
+    verified: ExtractedExpense
+    mismatches: Dict[str, Tuple[Any, Any]]  # field_name -> (original_value, verified_value)
+    error: Optional[str] = None  # Set if extraction failed
+
+
+@dataclass
+class ValidationSummary:
+    """Summary of validation run."""
+    total: int
+    validated: int
+    passed: int
+    failed: int
+    skipped: int  # Missing PDFs
+    results: List[ValidationResult]

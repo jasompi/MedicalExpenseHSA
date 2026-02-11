@@ -12,8 +12,13 @@ from src.utils.logger import get_logger
 logger = get_logger(__name__)
 
 # Model constants - change these to use different models
-# MODEL_NAME = "claude-3-7-sonnet-20250219"
-MODEL_NAME = "gpt-4o"
+
+ANTHROPIC_MODEL_NAME = "claude-3-7-sonnet-20250219"
+OPENAI_MODEL_NAME = "gpt-4o"
+GEMINI_MODEL_NAME = "gemini-2.5-flash"
+
+MODEL_NAME = OPENAI_MODEL_NAME
+VERIFICATION_MODEL_NAME = GEMINI_MODEL_NAME
 
 def load_extraction_prompt() -> str:
     """Load the extraction prompt from file."""
@@ -25,15 +30,20 @@ def load_extraction_prompt() -> str:
 class ReceiptExtractor:
     """Extract expense data from receipt PDFs using LLM vision capabilities."""
 
-    def __init__(self):
-        """Initialize the receipt extractor."""
+    def __init__(self, model_name: str = MODEL_NAME):
+        """Initialize the receipt extractor.
+
+        Args:
+            model_name: LLM model to use (defaults to MODEL_NAME)
+        """
+        self.model_name = model_name
         self.extraction_prompt = load_extraction_prompt()
         self.agent = Agent(
-            MODEL_NAME,
+            model_name,
             output_type=ExtractedExpense,
             system_prompt=self.extraction_prompt,
         )
-        logger.info(f"Initialized LLM extractor with model: {MODEL_NAME}")
+        logger.info(f"Initialized LLM extractor with model: {model_name}")
 
     def _write_debug_log(
         self,
