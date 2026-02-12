@@ -1,0 +1,22 @@
+You are helping find elements on a web page. The user wants to find: "{search_query}"
+
+Here is the accessibility tree of the page:
+{dom_tree_json}
+
+Find ALL elements that match the user's query. Return up to 20 most relevant matches, ordered by relevance.
+
+Return your findings in this exact format (one line per matching element):
+
+FOUND: <total_number_of_matching_elements>
+SHOWING: <number_shown_up_to_20>
+---
+ref_X | role | name | type | reason why this matches
+ref_Y | role | name | type | reason why this matches
+...
+
+If there are more than 20 matches, add this line at the end:
+MORE: Use a more specific query to see additional results
+
+If no matching elements are found, return only:
+FOUND: 0
+ERROR: explanation of why no elements were found

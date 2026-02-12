@@ -924,31 +924,22 @@ Source element: <{result.get("source", "unknown")}>
             if api_key:
                 try:
                     from anthropic import AsyncAnthropic
+                    from pathlib import Path
 
                     client = AsyncAnthropic(api_key=api_key)
 
-                    prompt = f"""You are helping find elements on a web page. The user wants to find: "{search_query}"
+                    # Load element finding prompt from file
+                    prompt_path = Path(__file__).parent.parent / "prompts" / "element_finding.txt"
+                    if not prompt_path.exists():
+                        raise FileNotFoundError(f"Element finding prompt not found: {prompt_path}")
 
-Here is the accessibility tree of the page:
-{dom_tree_json}
+                    prompt_template = prompt_path.read_text(encoding='utf-8')
 
-Find ALL elements that match the user's query. Return up to 20 most relevant matches, ordered by relevance.
-
-Return your findings in this exact format (one line per matching element):
-
-FOUND: <total_number_of_matching_elements>
-SHOWING: <number_shown_up_to_20>
----
-ref_X | role | name | type | reason why this matches
-ref_Y | role | name | type | reason why this matches
-...
-
-If there are more than 20 matches, add this line at the end:
-MORE: Use a more specific query to see additional results
-
-If no matching elements are found, return only:
-FOUND: 0
-ERROR: explanation of why no elements were found"""
+                    # Fill in template with search query and DOM tree
+                    prompt = prompt_template.format(
+                        search_query=search_query,
+                        dom_tree_json=dom_tree_json
+                    )
 
                     response = await client.messages.create(
                         model="claude-3-5-sonnet-20241022",
