@@ -1,6 +1,7 @@
 """CLI for HSA medical expense claim automation."""
 
 import asyncio
+import os
 import sys
 from pathlib import Path
 import click
@@ -224,10 +225,16 @@ def submit(ctx, path):
         # Import here to avoid loading playwright if not needed
         from src.automation.claim_submitter import ClaimSubmitter
 
+        # Read browser configuration from environment
+        headless = os.getenv("BROWSER_HEADLESS", "false").lower() == "true"
+
+        click.echo(f"Browser mode: {'headless' if headless else 'visible UI'}\n")
+
         # Create submitter
         submitter = ClaimSubmitter(
             csv_manager=csv_manager,
             receipts_folder=receipts_folder,
+            headless=headless,
         )
 
         # Run submission
