@@ -65,10 +65,17 @@ EXTRACT THE FOLLOWING INFORMATION:
      * Made-up addresses to "complete" partial information
 
 3. **Date of Service**
-   - The date when medical service was provided
-   - Look for "Date of Service", "Service Date", or "DOS"
-   - If not found, use the receipt/invoice date
+   - Priority order for date extraction:
+     a) FIRST PRIORITY: Statement date, Invoice date, or Billing date if present
+     b) SECOND PRIORITY: Explicit "Date of Service" or "Service Date" field
+     c) THIRD PRIORITY: Last service date if multiple services are listed
+     d) FALLBACK: Receipt date or transaction date
+   - Use the FIRST available date from the priority order above
    - Format: YYYY-MM-DD
+   - Examples:
+     * If "Statement Date: 01/15/2026" appears → use 2026-01-15
+     * If only "Service Date: 01/10/2026" appears → use 2026-01-10
+     * If multiple service dates (01/05, 01/07, 01/10) but no statement date → use last date (2026-01-10)
 
 4. **Amount Paid by Patient (MOST IMPORTANT)**
    - This is the TOTAL amount the PATIENT paid INCLUDING TAX

@@ -123,23 +123,37 @@ class ExpenseRecord(BaseModel):
         }
 
 
+class FieldVerificationIssue(BaseModel):
+    """Single field that failed verification."""
+    field_name: str = Field(..., description="Name of the field (provider, provider_address, date_of_service, or amount_to_claim)")
+    extracted_value: str = Field(..., description="Value that was extracted")
+    correct_value: str = Field(..., description="Correct value from receipt")
+    reason: str = Field(..., description="Explanation of why it's incorrect")
+
+
+class VerificationResponse(BaseModel):
+    """LLM output from verification prompt."""
+    overall_correct: bool = Field(..., description="Whether all fields are correct")
+    incorrect_fields: List[FieldVerificationIssue] = Field(default_factory=list, description="List of incorrect fields")
+    notes: str = Field(default="", description="Optional notes about verification")
+
+
 @dataclass
-class ValidationResult:
-    """Result of validating a single receipt."""
+class VerificationResult:
+    """Result of verifying a single receipt."""
     file_name: str
     passed: bool
     original: ExpenseRecord
-    verified: ExtractedExpense
-    mismatches: Dict[str, Tuple[Any, Any]]  # field_name -> (original_value, verified_value)
-    error: Optional[str] = None  # Set if extraction failed
+    verification_response: Optional[VerificationResponse]
+    error: Optional[str] = None  # Set if verification failed
 
 
 @dataclass
-class ValidationSummary:
-    """Summary of validation run."""
+class VerificationSummary:
+    """Summary of verification run."""
     total: int
-    validated: int
+    verified: int
     passed: int
     failed: int
     skipped: int  # Missing PDFs
-    results: List[ValidationResult]
+    results: List[VerificationResult]

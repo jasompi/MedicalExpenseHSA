@@ -11,7 +11,7 @@ from src.core.csv_manager import CSVManager
 from src.core.signal_handler import GracefulShutdown
 from src.processors.llm_extractor import ReceiptExtractor, VERIFICATION_MODEL_NAME
 from src.processors.receipt_processor import ReceiptProcessor
-from src.processors.receipt_validator import ReceiptValidator
+from src.processors.receipt_verifier import ReceiptVerifier
 from src.utils.logger import setup_logger, get_logger
 from src.utils.path_utils import deduce_csv_path
 
@@ -102,15 +102,15 @@ def process(ctx, receipts_path, csv_file, force):
 
 @cli.command()
 @click.argument('receipts_path', type=click.Path(exists=True, path_type=Path))
-@click.option('--csv', 'csv_file', default=None, help='CSV file to validate (default: expenses.csv in folder or {basename}.csv for single file)')
+@click.option('--csv', 'csv_file', default=None, help='CSV file to verify (default: expenses.csv in folder or {basename}.csv for single file)')
 @click.pass_context
-def validate(ctx, receipts_path, csv_file):
-    """Validate existing CSV expense records using verification model.
+def verify(ctx, receipts_path, csv_file):
+    """Verify existing CSV expense records using LLM semantic judgment.
 
     RECEIPTS_PATH: Path to folder containing receipt PDFs OR path to a single PDF file
 
-    Only validates expenses already recorded in the CSV (does not process new files).
-    Reports mismatches but does NOT update the CSV.
+    Only verifies expenses already recorded in the CSV (does not process new files).
+    Reports verification issues but does NOT update the CSV.
     """
     GracefulShutdown.setup()
 
@@ -124,7 +124,7 @@ def validate(ctx, receipts_path, csv_file):
         # Check CSV exists
         if not csv_path.exists():
             click.echo(f"\n❌ Error: CSV file not found: {csv_path}", err=True)
-            click.echo("Nothing to validate. Run 'process' first to extract expenses.\n")
+            click.echo("Nothing to verify. Run 'process' first to extract expenses.\n")
             sys.exit(1)
 
         # Determine receipts folder
@@ -132,7 +132,7 @@ def validate(ctx, receipts_path, csv_file):
 
         # Print banner
         click.echo(f"\n{'=' * 60}")
-        click.echo(f"HSA Agent - Receipt Validation")
+        click.echo(f"HSA Agent - Receipt Verification")
         click.echo(f"{'=' * 60}")
         if is_single_file:
             click.echo(f"PDF file: {receipts_path}")
@@ -144,31 +144,30 @@ def validate(ctx, receipts_path, csv_file):
 
         # Initialize components
         csv_manager = CSVManager(csv_path)
-        verification_extractor = ReceiptExtractor(model_name=VERIFICATION_MODEL_NAME)
-        validator = ReceiptValidator(receipts_folder, csv_manager, verification_extractor)
+        verifier = ReceiptVerifier(receipts_folder, csv_manager)
 
         # Determine target files based on mode
         if is_single_file:
-            # Single file mode: validate only this file
+            # Single file mode: verify only this file
             target_file = receipts_path.name
             expenses = csv_manager.load_expenses()
             if not any(e.file_name == target_file for e in expenses):
-                click.echo(f"❌ Error: {target_file} not found in CSV. Nothing to validate.\n", err=True)
+                click.echo(f"❌ Error: {target_file} not found in CSV. Nothing to verify.\n", err=True)
                 sys.exit(1)
             target_files = [target_file]
         else:
-            # Folder mode: validate all files in CSV
-            target_files = None  # None means validate all
+            # Folder mode: verify all files in CSV
+            target_files = None  # None means verify all
 
-        # Run validation
-        summary = asyncio.run(validator.validate_receipts(target_files=target_files))
+        # Run verification
+        summary = asyncio.run(verifier.verify_receipts(target_files=target_files))
 
         # Print formatted summary
-        click.echo(validator._format_summary(summary))
+        click.echo(verifier._format_summary(summary))
 
         # Exit with appropriate code
         if summary.failed > 0:
-            sys.exit(1)  # Validation failures
+            sys.exit(1)  # Verification failures
         else:
             sys.exit(0)  # All passed or only skipped
 

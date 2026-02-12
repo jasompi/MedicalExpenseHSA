@@ -1,0 +1,107 @@
+You are verifying the accuracy of medical receipt data extraction. You will be given:
+1. A medical receipt PDF document
+2. Previously extracted data from this receipt
+
+Your task is to judge if the extracted data is CORRECT or INCORRECT based on the receipt.
+
+VERIFICATION RULES:
+
+1. **Semantic Understanding Required**
+   - Use semantic equivalence, not exact string matching
+   - "1241 E Hillsdale" = "1241 East Hillsdale Boulevard" (both correct)
+   - "CVS PHARMACY" = "CVS Pharmacy" = "cvs pharmacy" (both correct)
+   - "94404" = "94404-1296" (both correct - extended ZIP is acceptable)
+   - "California Advanced Imaging" = "CALIFORNIA ADVANCED IMAGING" (both correct)
+
+2. **Provider Name**
+   - Must match the provider shown on the receipt (case-insensitive, flexible formatting)
+   - "SUTTER HEALTH" = "Sutter Health" = "Sutter health" (all correct)
+   - Only mark incorrect if the provider name is clearly wrong or doesn't match the receipt
+
+3. **Provider Address**
+   - Be VERY lenient with address variations
+   - Street abbreviations are acceptable: "E" = "East", "Blvd" = "Boulevard", "St" = "Street", "Ave" = "Avenue"
+   - Suite/unit variations acceptable: "Ste 220" = "Suite 220" = "#220"
+   - ZIP+4 vs 5-digit ZIP both acceptable: "94404" = "94404-1296"
+   - IGNORE missing or extra suite/unit numbers entirely
+     * "123 Main St, City, CA 94404" = "123 Main St Ste 200, City, CA 94404" (both correct)
+   - City name variations acceptable if semantically same: "San Francisco" = "S.F." = "SF"
+   - If extracted address is partial but accurate, mark as CORRECT
+   - Only flag as INCORRECT if:
+     * The address is completely wrong or fabricated
+     * The street name or city is incorrect
+     * The address doesn't match anything on the receipt
+
+4. **Date of Service**
+   - Accept ANY valid date that appears ANYWHERE on the receipt
+   - Priority order (all are acceptable if found on receipt):
+     a) Statement date / Invoice date / Billing date (preferred)
+     b) Service date / Date of service
+     c) Last service date if multiple services listed
+     d) Receipt date / transaction date / payment date
+   - DO NOT mark as incorrect if a different valid date from the receipt was used
+   - ONLY mark incorrect if the date doesn't appear anywhere on the receipt at all
+   - **CRITICAL**: When reporting incorrect dates, ALWAYS use YYYY-MM-DD format in the "correct_value" field
+   - Examples of CORRECT extractions:
+     * Receipt has "Statement Date: 01/15/2026" and "Service Date: 01/10/2026" → either date is correct
+     * Receipt has multiple service dates → any of those dates is correct
+   - If marking a date as incorrect, format the correct date as YYYY-MM-DD (e.g., "2025-07-07", NOT "07/07/2025")
+
+5. **Amount to Claim (CRITICAL - PAY SPECIAL ATTENTION)**
+   - This is the MOST IMPORTANT field to verify
+   - Must be the total amount the PATIENT/CLIENT paid or owes
+   - Look for labels indicating patient responsibility:
+     * "Patient Paid", "Patient Responsibility", "Patient Balance"
+     * "Amount Due", "Amount Owed", "Balance Due"
+     * "You Owe", "Your Responsibility"
+     * "Total Due", "Amount to Pay"
+   - DO NOT accept these types of amounts:
+     * "Total Charges", "Total Billed", "Billed Amount"
+     * "Insurance Paid", "Insurance Payment", "Plan Paid"
+     * "Provider Charges", "Original Charges"
+   - The amount should be AFTER insurance adjustment (if applicable)
+   - Allow rounding differences up to $0.02 (e.g., 21.86 vs 21.88 is acceptable)
+   - Mark as INCORRECT if:
+     * The amount appears to be the total charges (before insurance)
+     * The amount appears to be the insurance payment
+     * The amount doesn't match any patient-paid amount on the receipt
+     * The difference is more than $0.02
+   - Examples of INCORRECT scenarios:
+     * Receipt shows "Total Charges: $500, Insurance Paid: $450, Patient Paid: $50" but extracted $500 → INCORRECT (used total charges)
+     * Receipt shows "Amount Owed: $0" but extracted $50 → INCORRECT (patient owes nothing)
+     * Receipt shows "Insurance Payment: $200" but extracted $200 → INCORRECT (this is insurance payment, not patient payment)
+
+EXTRACTED DATA TO VERIFY:
+{extracted_data}
+
+VERIFICATION OUTPUT:
+
+You MUST return a JSON object with this exact structure:
+
+{{
+  "overall_correct": true or false,
+  "incorrect_fields": [
+    {{
+      "field_name": "field name (provider, provider_address, date_of_service, or amount_to_claim)",
+      "extracted_value": "value that was extracted",
+      "correct_value": "correct value from receipt",
+      "reason": "brief explanation of why it's incorrect"
+    }}
+  ],
+  "notes": "optional notes about the verification (e.g., 'Multiple dates found on receipt, all acceptable')"
+}}
+
+**CRITICAL FORMAT REQUIREMENTS FOR correct_value:**
+- For date_of_service: ALWAYS use YYYY-MM-DD format (e.g., "2025-07-07", NOT "07/07/2025" or "July 7, 2025")
+- For amount_to_claim: Use plain number format (e.g., "123.45", NOT "$123.45")
+- For provider and provider_address: Use exact text from receipt
+
+OUTPUT RULES:
+- If ALL fields are correct, return: {{"overall_correct": true, "incorrect_fields": [], "notes": ""}}
+- If ANY field is incorrect, set overall_correct to false and list ONLY the incorrect fields
+- Use semantic understanding - don't flag equivalent values as incorrect
+- Be lenient with formatting variations (case, abbreviations, spacing)
+- Be VERY lenient with addresses (ignore missing suite numbers)
+- Be VERY STRICT with amounts (ensure it's patient-paid, not other types)
+- For dates: accept any valid date from the receipt
+- Return ONLY the JSON object, no other text before or after

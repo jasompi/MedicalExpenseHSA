@@ -14,11 +14,11 @@ logger = get_logger(__name__)
 # Model constants - change these to use different models
 
 ANTHROPIC_MODEL_NAME = "claude-3-7-sonnet-20250219"
-OPENAI_MODEL_NAME = "gpt-4o"
+OPENAI_MODEL_NAME = "gpt-4o-2024-11-20"
 GEMINI_MODEL_NAME = "gemini-2.5-flash"
 
-MODEL_NAME = OPENAI_MODEL_NAME
-VERIFICATION_MODEL_NAME = GEMINI_MODEL_NAME
+MODEL_NAME = GEMINI_MODEL_NAME
+VERIFICATION_MODEL_NAME = ANTHROPIC_MODEL_NAME
 
 def load_extraction_prompt() -> str:
     """Load the extraction prompt from file."""
