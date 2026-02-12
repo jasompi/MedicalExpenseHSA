@@ -42,6 +42,15 @@ class GracefulShutdown:
         return cls.shutdown_requested
 
     @classmethod
+    def request_shutdown(cls) -> None:
+        """Request a graceful shutdown programmatically.
+
+        This is used when the user chooses to quit from error prompts
+        or other user intervention points.
+        """
+        cls.shutdown_requested = True
+
+    @classmethod
     def reset(cls) -> None:
         """Reset shutdown flag (useful for testing)."""
         cls.shutdown_requested = False
