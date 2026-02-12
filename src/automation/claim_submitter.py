@@ -283,8 +283,20 @@ class ClaimSubmitter:
             logger.error(error)
             return (False, None, error)
 
-        # Prepare initial messages (empty - agent will start fresh)
-        messages = []
+        # Prepare initial messages with task instruction
+        messages = [
+            {
+                "role": "user",
+                "content": f"""Please submit this HSA claim to Optum Bank:
+
+Provider: {expense.provider}
+Amount: ${expense.amount_to_claim}
+Date of Service: {expense.date_of_service.strftime('%m/%d/%Y')}
+Receipt: {expense.file_name}
+
+Follow the workflow in your system prompt to complete the submission and capture the confirmation number."""
+            }
+        ]
 
         # Callbacks for agent output (simplified - just log)
         def output_callback(content_block):
