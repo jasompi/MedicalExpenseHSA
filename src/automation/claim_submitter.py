@@ -115,7 +115,19 @@ class ClaimSubmitter:
 
             # Check if already logged in
             if not await self.browser_manager.is_logged_in():
-                await self.user_intervention.wait_for_login(browser_tool)
+                login_success = await self.user_intervention.wait_for_login(browser_tool)
+
+                # Check if user requested exit
+                if not login_success:
+                    logger.info("User requested exit during login - cleaning up")
+                    await self.browser_manager.cleanup()
+                    return {
+                        'total': total,
+                        'submitted': 0,
+                        'failed': 0,
+                        'skipped': total,
+                        'errors': [{'reason': 'User cancelled during login'}]
+                    }
 
                 # Verify login succeeded
                 if not await self.browser_manager.is_logged_in():

@@ -43,7 +43,7 @@ class UserInterventionManager:
             timeout: Maximum seconds to wait (not enforced in CLI mode)
 
         Returns:
-            True if user confirms login complete
+            True if user confirms login complete, False if user wants to exit
         """
         if self.streamlit_mode:
             # Streamlit implementation (future)
@@ -64,11 +64,20 @@ class UserInterventionManager:
             click.echo("Please log in to Optum Bank in the browser window that just opened.")
             click.echo()
             click.secho("→ Complete the login process in the browser", fg="cyan")
-            click.secho("→ When you're logged in, press Enter to continue...", fg="cyan")
+            click.secho("→ When you're logged in, press Enter to continue", fg="cyan")
+            click.secho("→ Or type 'cancel', 'quit', or 'exit' to abort", fg="red")
             click.echo()
 
-            # Wait for Enter key
-            click.pause(info="")
+            # Wait for Enter key or text input
+            user_input = click.prompt("Press Enter to continue or type command", default="", show_default=False)
+
+            # Check if user wants to exit
+            if user_input.strip().lower() in ["cancel", "quit", "exit"]:
+                click.echo()
+                click.secho("🛑 User requested exit - closing browser and exiting...", fg="red", bold=True)
+                logger.info("User requested exit from login prompt")
+                return False
+
             logger.info("User confirmed login complete")
             return True
 
