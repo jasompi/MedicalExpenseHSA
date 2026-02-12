@@ -273,7 +273,18 @@ class ClaimSubmitter:
         Returns:
             Tuple of (success: bool, confirmation_id: str | None, error: str | None)
         """
-        logger.info("Starting claim submission", file_name=expense.file_name)
+        logger.info("=" * 80)
+        logger.info(f"🏥 STARTING CLAIM SUBMISSION")
+        logger.info(f"   File: {expense.file_name}")
+        logger.info(f"   Provider: {expense.provider}")
+        logger.info(f"   Amount: ${expense.amount_to_claim}")
+        logger.info("=" * 80)
+
+        print(f"\n{'=' * 80}")
+        print(f"🏥 SUBMITTING CLAIM: {expense.file_name}")
+        print(f"   Provider: {expense.provider}")
+        print(f"   Amount: ${expense.amount_to_claim}")
+        print(f"{'=' * 80}\n")
 
         # Get receipt path
         receipt_path = self.receipts_folder / expense.file_name
@@ -298,15 +309,26 @@ Follow the workflow in your system prompt to complete the submission and capture
             }
         ]
 
-        # Callbacks for agent output (simplified - just log)
+        # Callbacks for agent output (enhanced with detailed logging)
         def output_callback(content_block):
             if content_block.get("type") == "text":
                 text = content_block.get("text", "")
                 if text.strip():
-                    logger.debug("Agent output", text=text[:200])  # Log first 200 chars
+                    # Print agent's thinking to console
+                    logger.info("💭 Agent says:", text=text)
+                    # Also print to stdout for immediate visibility
+                    print(f"\n💭 Agent: {text}\n")
+            elif content_block.get("type") == "tool_use":
+                tool_name = content_block.get("name", "unknown")
+                logger.debug(f"Agent wants to use tool: {tool_name}")
 
         def tool_output_callback(result, tool_id):
-            logger.debug("Tool executed", tool_id=tool_id, has_output=bool(result))
+            # Log tool results
+            if result.output:
+                output_preview = result.output[:200] if len(result.output) > 200 else result.output
+                logger.info(f"📤 Tool result preview: {output_preview}...")
+            if result.error:
+                logger.error(f"Tool error: {result.error}")
 
         def api_response_callback(request, response, error):
             if error:
@@ -316,6 +338,7 @@ Follow the workflow in your system prompt to complete the submission and capture
 
         try:
             # Run agent loop
+            logger.info("🚀 Starting agent loop...")
             result = await claim_submission_loop(
                 expense=expense,
                 receipt_path=receipt_path,
@@ -327,6 +350,11 @@ Follow the workflow in your system prompt to complete the submission and capture
                 api_response_callback=api_response_callback,
                 api_key=self.api_key,
             )
+
+            logger.info("🏁 Agent loop completed")
+            logger.info(f"   Success: {result.get('success', False)}")
+            logger.info(f"   Confirmation ID: {result.get('confirmation_id', 'N/A')}")
+            logger.info(f"   Error: {result.get('error', 'N/A')}")
 
             success = result.get("success", False)
             confirmation_id = result.get("confirmation_id")

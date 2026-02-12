@@ -111,9 +111,12 @@ async def claim_submission_loop(
 
         while turn_count < max_turns:
             turn_count += 1
-            logger.debug("Agent turn", turn=turn_count)
+            logger.info("=" * 60)
+            logger.info(f"AGENT TURN {turn_count}/{max_turns}")
+            logger.info("=" * 60)
 
             # Make API call
+            logger.info("⏳ Waiting for LLM response...")
             try:
                 api_kwargs = {
                     "max_tokens": max_tokens,
@@ -129,6 +132,8 @@ async def claim_submission_loop(
                 else:
                     response = client.messages.create(**api_kwargs)
 
+                logger.info(f"✓ Received LLM response (stop_reason: {response.stop_reason})")
+
             except Exception as e:
                 logger.error("API call failed", error=str(e))
                 api_response_callback(None, None, e)
@@ -138,8 +143,15 @@ async def claim_submission_loop(
             api_response_callback(None, response, None)
 
             # Process response
+            logger.info("📋 Processing response...")
             processor = ResponseProcessor()
             processed = processor.process_response(response)
+
+            # Log what we received
+            if processed.has_text:
+                logger.info(f"💬 Agent provided text response")
+            if processed.has_tools:
+                logger.info(f"🔧 Agent requested {len(processed.tool_uses)} tool call(s)")
 
             # Output all content blocks
             for content_block in processed.assistant_content:
@@ -151,11 +163,20 @@ async def claim_submission_loop(
 
             # Execute tools if present
             if processed.tool_uses:
+                logger.info("🔨 Executing tools...")
+                for i, tool_use in enumerate(processed.tool_uses, 1):
+                    tool_name = tool_use["name"]
+                    tool_input = tool_use["input"]
+                    logger.info(f"  [{i}/{len(processed.tool_uses)}] Calling tool: {tool_name}")
+                    logger.info(f"      Input: {tool_input}")
+
                 tool_results = await processor.execute_tools(
                     processed.tool_uses,
                     tool_collection,
                     tool_output_callback
                 )
+
+                logger.info(f"✓ All tools executed, sending {len(tool_results)} result(s) back to LLM")
 
                 # Check for completion or intervention signals
                 for tool_use in processed.tool_uses:
@@ -165,7 +186,7 @@ async def claim_submission_loop(
                     if tool_name == "submit_claim":
                         confirmation_id = tool_use["input"].get("confirmation_id")
                         if confirmation_id:
-                            logger.info("Claim submitted", confirmation_id=confirmation_id)
+                            logger.info(f"✅ CLAIM SUBMITTED - Confirmation: {confirmation_id}")
                             result["success"] = True
                             result["confirmation_id"] = confirmation_id
                             return result
@@ -174,7 +195,7 @@ async def claim_submission_loop(
                     elif tool_name == "wait_for_user":
                         reason = tool_use["input"].get("reason")
                         instruction = tool_use["input"].get("instruction")
-                        logger.info("User intervention requested", reason=reason)
+                        logger.info(f"⏸️  USER INTERVENTION REQUESTED - Reason: {reason}")
                         result["intervention_needed"] = reason
                         result["error"] = f"User intervention required: {instruction}"
                         return result
