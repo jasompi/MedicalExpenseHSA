@@ -137,6 +137,7 @@ async def claim_submission_loop(
     api_key: str,
     max_tokens: int = 4096,
     turn_offset: int = 0,
+    full_flow: bool = False,
 ) -> dict:
     """Agent loop for submitting a single claim.
 
@@ -155,6 +156,8 @@ async def claim_submission_loop(
         api_key: Anthropic API key
         max_tokens: Maximum tokens for response
         turn_offset: Starting turn number (for resumed loops). Default 0.
+        full_flow: If True, use full workflow with provider search and file upload.
+                   If False (default), use simplified workflow.
 
     Returns:
         Dictionary with:
@@ -168,14 +171,15 @@ async def claim_submission_loop(
         "Starting claim submission loop",
         file_name=expense.file_name,
         provider=expense.provider,
-        amount=float(expense.amount_to_claim)
+        amount=float(expense.amount_to_claim),
+        mode="full" if full_flow else "simplified"
     )
 
     # Create tool collection with browser and custom tools
     tool_collection = OptumToolCollection(browser_tool)
 
     # Build system prompt with expense context
-    system_prompt = get_claim_submission_system_prompt(expense)
+    system_prompt = get_claim_submission_system_prompt(expense, full_flow=full_flow)
     system = BetaTextBlockParam(
         type="text",
         text=system_prompt,

@@ -11,7 +11,8 @@ from src.core.models import ExpenseRecord
 
 # Prompt file paths
 PROMPTS_DIR = Path(__file__).parent.parent / "prompts"
-CLAIM_SUBMISSION_DYNAMIC_PROMPT = PROMPTS_DIR / "claim_submission_dynamic.txt"
+CLAIM_SUBMISSION_SIMPLIFIED_PROMPT = PROMPTS_DIR / "claim_submission_simplified.txt"
+CLAIM_SUBMISSION_FULL_PROMPT = PROMPTS_DIR / "claim_submission_full.txt"
 CLAIM_SUBMISSION_BASE_PROMPT = PROMPTS_DIR / "claim_submission_base.txt"
 
 
@@ -60,42 +61,52 @@ def format_amount_for_entry(amount: float) -> str:
     return str(cents)
 
 
-def get_claim_submission_system_prompt(expense: ExpenseRecord) -> str:
+def get_claim_submission_system_prompt(expense: ExpenseRecord, full_flow: bool = False) -> str:
     """Generate system prompt for claim submission with expense context.
 
-    Loads the dynamic claim submission template and fills in expense details
-    including provider, amount, date, and file information.
+    Loads the appropriate prompt template based on workflow mode and fills in
+    expense details accordingly.
 
     Args:
         expense: ExpenseRecord containing claim details
+        full_flow: If True, use full workflow with provider search and file upload.
+                   If False (default), use simplified workflow without provider/file.
 
     Returns:
-        Complete system prompt with expense details filled in
+        Complete system prompt with expense details and appropriate workflow
 
     Raises:
         FileNotFoundError: If the prompt template file is missing
     """
-    # Load template
-    template = load_prompt(CLAIM_SUBMISSION_DYNAMIC_PROMPT)
-
-    # Format date of service
+    # Format shared variables
     date_str = expense.date_of_service.strftime('%m/%d/%Y')
     current_date_str = datetime.today().strftime('%A, %B %-d, %Y')
-
-    # Format amount
     amount_str = f"{expense.amount_to_claim:.2f}"
     amount_cents_str = format_amount_for_entry(float(expense.amount_to_claim))
 
-    # Fill in template
-    return template.format(
-        provider=expense.provider,
-        provider_address=expense.provider_address,
-        amount=amount_str,
-        amount_cents=amount_cents_str,
-        date_of_service=date_str,
-        file_name=expense.file_name,
-        current_date=current_date_str
-    )
+    if full_flow:
+        # Load full workflow template
+        template = load_prompt(CLAIM_SUBMISSION_FULL_PROMPT)
+        # Fill in ALL variables including provider and receipt
+        return template.format(
+            provider=expense.provider,
+            provider_address=expense.provider_address,
+            amount=amount_str,
+            amount_cents=amount_cents_str,
+            date_of_service=date_str,
+            file_name=expense.file_name,
+            current_date=current_date_str
+        )
+    else:
+        # Load simplified workflow template
+        template = load_prompt(CLAIM_SUBMISSION_SIMPLIFIED_PROMPT)
+        # Fill in ONLY amount and date (no provider, no file)
+        return template.format(
+            amount=amount_str,
+            amount_cents=amount_cents_str,
+            date_of_service=date_str,
+            current_date=current_date_str
+        )
 
 
 def get_base_system_prompt() -> str:

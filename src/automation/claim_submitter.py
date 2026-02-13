@@ -47,6 +47,7 @@ class ClaimSubmitter:
         receipts_folder: Path,
         headless: bool = False,
         streamlit_mode: bool = False,
+        full_flow: bool = False,
     ):
         """Initialize claim submitter.
 
@@ -55,12 +56,15 @@ class ClaimSubmitter:
             receipts_folder: Path to folder containing receipt PDFs
             headless: Whether to run browser in headless mode
             streamlit_mode: Whether to use Streamlit UI (vs CLI)
+            full_flow: If True, use full workflow with provider search and file upload.
+                       If False (default), use simplified workflow.
         """
         self.csv_manager = csv_manager
         self.receipts_folder = receipts_folder
         self.browser_manager = BrowserManager(headless)
         self.user_intervention = UserInterventionManager(streamlit_mode)
         self.state_tracker = StateTracker()
+        self.full_flow = full_flow
 
         # Get API key from environment
         self.api_key = os.getenv("ANTHROPIC_API_KEY")
@@ -71,7 +75,8 @@ class ClaimSubmitter:
             "ClaimSubmitter initialized",
             receipts_folder=str(receipts_folder),
             headless=headless,
-            mode="streamlit" if streamlit_mode else "cli"
+            mode="streamlit" if streamlit_mode else "cli",
+            workflow="full" if full_flow else "simplified"
         )
 
     async def submit_all_claims(self) -> dict:
@@ -362,6 +367,7 @@ Follow the workflow in your system prompt to complete the submission and capture
                 api_response_callback=api_response_callback,
                 api_key=self.api_key,
                 turn_offset=0,  # Starting fresh
+                full_flow=self.full_flow,
             )
 
             logger.info("🏁 Agent loop completed")
@@ -415,6 +421,7 @@ Follow the workflow in your system prompt to complete the submission and capture
                         api_response_callback=api_response_callback,
                         api_key=self.api_key,
                         turn_offset=turns_used,  # Continue turn count
+                        full_flow=self.full_flow,
                     )
 
                     # Process the resumed result

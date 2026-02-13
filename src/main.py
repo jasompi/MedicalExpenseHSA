@@ -178,11 +178,16 @@ def verify(ctx, receipts_path, csv_file):
 
 @cli.command()
 @click.argument('path', type=click.Path(exists=True, path_type=Path))
+@click.option('--full-flow', is_flag=True, default=False,
+              help='Use full workflow with provider search and receipt upload. Default is simplified flow.')
 @click.pass_context
-def submit(ctx, path):
+def submit(ctx, path, full_flow):
     """Submit unclaimed expenses to Optum Bank.
 
     PATH: Path to folder (uses expenses.csv), a CSV file, or a PDF file (uses corresponding .csv)
+
+    By default, uses simplified workflow (skip provider search and file upload).
+    Use --full-flow to include provider search and receipt upload steps.
 
     Opens Chrome browser in visible mode. You'll need to sign in manually if not already signed in.
     """
@@ -208,6 +213,13 @@ def submit(ctx, path):
         click.echo(f"{'=' * 60}")
         click.echo(f"CSV file: {csv_path}")
         click.echo(f"Receipts folder: {receipts_folder}")
+
+        # Show workflow mode
+        if full_flow:
+            click.echo("Workflow: FULL (with provider search and file upload)")
+        else:
+            click.echo("Workflow: SIMPLIFIED (skip provider search and file upload)")
+
         click.echo(f"{'=' * 60}\n")
 
         # Initialize components
@@ -234,6 +246,7 @@ def submit(ctx, path):
             csv_manager=csv_manager,
             receipts_folder=receipts_folder,
             headless=headless,
+            full_flow=full_flow,
         )
 
         # Run submission
