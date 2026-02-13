@@ -49,27 +49,44 @@ VERIFICATION RULES:
 
 5. **Amount to Claim (CRITICAL - PAY SPECIAL ATTENTION)**
    - This is the MOST IMPORTANT field to verify
-   - Must be the total amount the PATIENT/CLIENT paid or owes
-   - Look for labels indicating patient responsibility:
-     * "Patient Paid", "Patient Responsibility", "Patient Balance"
-     * "Amount Due", "Amount Owed", "Balance Due"
-     * "You Owe", "Your Responsibility"
-     * "Total Due", "Amount to Pay"
-   - DO NOT accept these types of amounts:
-     * "Total Charges", "Total Billed", "Billed Amount"
-     * "Insurance Paid", "Insurance Payment", "Plan Paid"
-     * "Provider Charges", "Original Charges"
-   - The amount should be AFTER insurance adjustment (if applicable)
-   - Allow rounding differences up to $0.02 (e.g., 21.86 vs 21.88 is acceptable)
-   - Mark as INCORRECT if:
-     * The amount appears to be the total charges (before insurance)
-     * The amount appears to be the insurance payment
-     * The amount doesn't match any patient-paid amount on the receipt
-     * The difference is more than $0.02
-   - Examples of INCORRECT scenarios:
-     * Receipt shows "Total Charges: $500, Insurance Paid: $450, Patient Paid: $50" but extracted $500 → INCORRECT (used total charges)
-     * Receipt shows "Amount Owed: $0" but extracted $50 → INCORRECT (patient owes nothing)
-     * Receipt shows "Insurance Payment: $200" but extracted $200 → INCORRECT (this is insurance payment, not patient payment)
+   - Must be the amount the patient paid (for receipts) OR owes (for bills/invoices) for HSA reimbursement
+
+   ⚠️ **CRITICAL: FIRST determine the document type**
+   - **RECEIPT** (payment already made): Look for "Receipt", "Paid", "Payment Made", "Thank You"
+   - **BILL/INVOICE** (payment requested): Look for "Invoice", "Bill", "Statement", "Amount Due"
+
+   📝 **FOR RECEIPTS (payment already made):**
+   - Verify the extracted amount matches the patient PAYMENT amount
+   - Look for labels: "Patient Paid", "Payment Made", "Amount Paid", "Payment", "Paid Today"
+   - **IGNORE "Balance" or "Balance Due" fields** (these show remaining balance AFTER payment, not what was paid)
+   - Example CORRECT: "Receipt shows 'Payment: $100, Balance: $0' and extracted $100 → CORRECT"
+   - Example INCORRECT: "Receipt shows 'Payment: $100, Balance: $0' and extracted $0 → INCORRECT (should extract payment $100, not balance)"
+
+   📄 **FOR BILLS/INVOICES (payment requested):**
+   - Verify the extracted amount matches the patient responsibility/amount due
+   - Look for labels: "Patient Responsibility", "Amount Due", "Balance Due", "Patient Portion"
+   - EXCLUDE insurance payments
+   - Example CORRECT: "Invoice shows 'Patient Responsibility: $200' and extracted $200 → CORRECT"
+   - Example INCORRECT: "Invoice shows 'Total: $500, Insurance: $300, Patient: $200' and extracted $500 → INCORRECT (total charges, not patient amount)"
+
+   **Mark as INCORRECT if:**
+   - For RECEIPTS: The extracted amount is the balance ($0) instead of the payment amount
+   - For RECEIPTS: The extracted amount doesn't match any payment shown on the receipt
+   - For BILLS: The amount appears to be the total charges (before insurance)
+   - For BILLS: The amount appears to be the insurance payment
+   - For BILLS: The amount doesn't match the patient responsibility
+   - The difference is more than $0.02 (allow rounding differences up to $0.02)
+
+   **Examples of CORRECT verifications:**
+   - Receipt shows "Payment Made: $5,718.80, New Balance: $0.00" and extracted $5,718.80 → CORRECT (payment amount from receipt)
+   - Receipt shows "Patient Paid: $50, Balance: $0" and extracted $50 → CORRECT (payment from receipt, not balance)
+   - Invoice shows "Patient Responsibility: $200, Balance: $200" and extracted $200 → CORRECT (amount owed from invoice)
+   - Invoice shows "Total: $500, Insurance Paid: $300, Patient Owes: $200" and extracted $200 → CORRECT (patient portion)
+
+   **Examples of INCORRECT extractions:**
+   - Receipt shows "Patient Paid: $50, Balance: $0" but extracted $0 → INCORRECT (receipt shows payment made, should extract $50)
+   - Invoice shows "Total Charges: $500, Insurance Paid: $450, Patient Paid: $50" but extracted $500 → INCORRECT (used total charges)
+   - Bill shows "Insurance Payment: $200" but extracted $200 → INCORRECT (this is insurance payment, not patient payment)
 
 EXTRACTED DATA TO VERIFY:
 {extracted_data}

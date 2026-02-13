@@ -77,21 +77,52 @@ EXTRACT THE FOLLOWING INFORMATION:
      * If only "Service Date: 01/10/2026" appears → use 2026-01-10
      * If multiple service dates (01/05, 01/07, 01/10) but no statement date → use last date (2026-01-10)
 
-4. **Amount Paid by Patient (MOST IMPORTANT)**
-   - This is the TOTAL amount the PATIENT paid INCLUDING TAX
-   - Read the ENTIRE receipt to find the correct amount
-   - Look for these terms (in order of priority):
-     a) "Patient Responsibility" or "Patient Balance"
-     b) "Amount Due" or "Balance Due"
-     c) "Total" or "Total Amount" or "Grand Total"
-     d) "Amount Paid" or "Payment"
+4. **Amount to Claim (Document Type Aware) (MOST IMPORTANT)**
+
+   ⚠️ **CRITICAL: FIRST determine the document type, then extract the appropriate amount**
+
+   **STEP 1: Identify Document Type**
+   - **RECEIPT** (payment already made): Look for "Receipt", "Paid", "Payment Made", "Thank You"
+   - **BILL/INVOICE** (payment requested): Look for "Invoice", "Bill", "Statement", "Amount Due"
+
+   **STEP 2: Extract Amount Based on Document Type**
+
+   📝 **FOR RECEIPTS (payment already made):**
+   - Extract the amount the patient PAID on this receipt
+   - Priority order:
+     1. "Patient Paid", "Payment Made", "Amount Paid", "Payment", "Paid Today"
+     2. "Patient Responsibility" (if this represents what was paid)
+     3. "Total" or "Total Amount" (if this is the patient's payment)
+   - **IGNORE "Balance" or "Balance Due" fields** (these show remaining balance AFTER payment, not what was paid)
+   - Example: "Payment Made: $100.00, New Balance: $0.00" → Return 100.00 (NOT 0.00)
+
+   📄 **FOR BILLS/INVOICES (payment requested):**
+   - Extract the amount the patient OWES
+   - Priority order:
+     1. "Patient Responsibility", "Patient Portion", "Your Responsibility"
+     2. "Amount Due", "Balance Due", "Total Due"
+     3. "Patient Balance", "You Owe"
+   - Example: "Patient Responsibility: $200.00" → Return 200.00
+
+   **CRITICAL RULES:**
    - INCLUDE sales tax in the amount
-   - This should be the FINAL total, not subtotal
    - EXCLUDE amounts paid by insurance
-   - CRITICAL: Return ONLY the numeric value without ANY currency symbols, commas, or text
-   - Examples of correct format: 21.86, 160.89, 1234.56
+   - Return ONLY the numeric value without ANY currency symbols, commas, or text
+   - Examples of correct format: 21.86, 160.89, 1234.56, 5718.80
    - If you see "$21.86", return: 21.86
-   - If you see "1,234.56", return: 1234.56
+   - If you see "5,718.80", return: 5718.80
+
+   **EXAMPLES BY DOCUMENT TYPE:**
+
+   Receipt examples (payment already made):
+   - "RECEIPT - Patient Paid: $100.00, Balance: $0.00" → Return 100.00
+   - "Payment Receipt - Amount Paid: $5,718.80, New Balance: $0.00" → Return 5718.80
+   - "Thank You - Payment: $50.00, You Owe: $0.00" → Return 50.00
+
+   Bill/Invoice examples (payment requested):
+   - "INVOICE - Patient Responsibility: $200.00" → Return 200.00
+   - "Statement - Amount Due: $75.00" → Return 75.00
+   - "Bill - Total: $150.00, Insurance Paid: $50.00, Patient Responsibility: $100.00" → Return 100.00
 
 VERIFICATION CHECKLIST:
 Before returning your answer, verify:
@@ -102,7 +133,10 @@ Before returning your answer, verify:
 - [ ] If the address is partial, did I extract only what's visible (without completing it)?
 - [ ] Is the address in SINGLE LINE format: "Street, City, State ZIP" (or partial if that's what's on receipt)?
 - [ ] Did I remove any newlines from the address?
-- [ ] Is the amount the TOTAL including tax that the patient paid?
+- [ ] Did I determine if this is a RECEIPT (payment made) or BILL/INVOICE (payment requested)?
+- [ ] For receipts: Did I extract the payment amount (not the current balance)?
+- [ ] For bills/invoices: Did I extract the amount owed (not insurance payments)?
+- [ ] Did I avoid extracting $0.00 balance when a payment amount is shown?
 - [ ] Did I remove all currency symbols from the amount?
 
 RETURN FORMAT:
