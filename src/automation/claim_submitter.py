@@ -361,6 +361,7 @@ Follow the workflow in your system prompt to complete the submission and capture
                 tool_output_callback=tool_output_callback,
                 api_response_callback=api_response_callback,
                 api_key=self.api_key,
+                turn_offset=0,  # Starting fresh
             )
 
             logger.info("🏁 Agent loop completed")
@@ -373,10 +374,64 @@ Follow the workflow in your system prompt to complete the submission and capture
             error = result.get("error")
             intervention_needed = result.get("intervention_needed")
 
+            # Check for resumable interventions (manual_step, 2fa)
             if intervention_needed:
-                # Handle intervention (login/2FA already handled at start, so this is unexpected)
-                logger.warning("Unexpected intervention during claim", reason=intervention_needed)
-                return (False, None, f"Intervention needed: {error}")
+                if intervention_needed in ["manual_step", "2fa"]:
+                    # This is a resumable intervention - pause and wait for user
+                    logger.info("Resumable intervention detected", reason=intervention_needed)
+
+                    # Extract the instruction from the error message
+                    instruction = error.replace("User intervention required: ", "") if error else "Please complete the required action"
+
+                    # Wait for user to complete the manual action
+                    user_confirmed = await self.user_intervention.wait_for_manual_action(instruction)
+
+                    if not user_confirmed:
+                        # User chose to quit during manual action
+                        logger.warning("User aborted manual action", reason=intervention_needed)
+                        return (False, None, f"User aborted during {intervention_needed}: {instruction}")
+
+                    # User confirmed - resume the agent loop with updated messages
+                    logger.info("Resuming agent loop after manual action", reason=intervention_needed)
+
+                    # Calculate turn offset for cumulative tracking
+                    turns_used = result.get("turns_used", 0)
+
+                    # Append user confirmation message to existing conversation
+                    messages.append({
+                        "role": "user",
+                        "content": "I have completed the requested action. Please verify and continue with the claim submission."
+                    })
+
+                    # Resume the agent loop with preserved message history
+                    result = await claim_submission_loop(
+                        expense=expense,
+                        receipt_path=receipt_path,
+                        model=CLAIM_MODEL,
+                        messages=messages,  # SAME messages list with conversation history
+                        browser_tool=browser_tool,
+                        output_callback=output_callback,
+                        tool_output_callback=tool_output_callback,
+                        api_response_callback=api_response_callback,
+                        api_key=self.api_key,
+                        turn_offset=turns_used,  # Continue turn count
+                    )
+
+                    # Process the resumed result
+                    success = result.get("success", False)
+                    confirmation_id = result.get("confirmation_id")
+                    error = result.get("error")
+                    intervention_needed = result.get("intervention_needed")
+
+                    # Safety check: if we get another intervention after resume, fail
+                    if intervention_needed:
+                        logger.error("Multiple interventions detected - failing claim", reason=intervention_needed)
+                        return (False, None, f"Multiple interventions required: {error}")
+                else:
+                    # Other intervention types (login, unexpected_error)
+                    # Login is already handled at start, so this is unexpected
+                    logger.warning("Unexpected intervention during claim", reason=intervention_needed)
+                    return (False, None, f"Intervention needed: {error}")
 
             if success and confirmation_id:
                 logger.info("Claim submitted successfully", confirmation_id=confirmation_id)

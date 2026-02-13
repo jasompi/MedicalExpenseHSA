@@ -136,6 +136,7 @@ async def claim_submission_loop(
     api_response_callback: Callable[[httpx.Request | None, httpx.Response | object | None, Exception | None], None],
     api_key: str,
     max_tokens: int = 4096,
+    turn_offset: int = 0,
 ) -> dict:
     """Agent loop for submitting a single claim.
 
@@ -153,13 +154,15 @@ async def claim_submission_loop(
         api_response_callback: Callback for API responses
         api_key: Anthropic API key
         max_tokens: Maximum tokens for response
+        turn_offset: Starting turn number (for resumed loops). Default 0.
 
     Returns:
         Dictionary with:
             - success: bool
             - confirmation_id: str | None
             - error: str | None
-            - intervention_needed: str | None (e.g., "login", "2fa")
+            - intervention_needed: str | None (e.g., "login", "2fa", "manual_step")
+            - turns_used: int (total turns used in this call)
     """
     logger.info(
         "Starting claim submission loop",
@@ -205,8 +208,9 @@ async def claim_submission_loop(
 
         while turn_count < max_turns:
             turn_count += 1
+            cumulative_turn = turn_offset + turn_count  # Track cumulative turns
             logger.info("=" * 60)
-            logger.info(f"AGENT TURN {turn_count}/{max_turns}")
+            logger.info(f"AGENT TURN {cumulative_turn}/{turn_offset + max_turns}")
             logger.info("=" * 60)
 
             # Make API call
@@ -290,6 +294,7 @@ async def claim_submission_loop(
                             logger.info(f"✅ CLAIM SUBMITTED - Confirmation: {confirmation_id}")
                             result["success"] = True
                             result["confirmation_id"] = confirmation_id
+                            result["turns_used"] = turn_count
                             return result
 
                     # Check if user intervention is needed
@@ -299,6 +304,7 @@ async def claim_submission_loop(
                         logger.info(f"⏸️  USER INTERVENTION REQUESTED - Reason: {reason}")
                         result["intervention_needed"] = reason
                         result["error"] = f"User intervention required: {instruction}"
+                        result["turns_used"] = turn_count
                         return result
 
                 # Add tool results to messages
@@ -309,14 +315,18 @@ async def claim_submission_loop(
                 # No tools used - agent finished without completion
                 logger.warning("Agent finished without calling submit_claim")
                 result["error"] = "Agent completed without submitting claim"
+                result["turns_used"] = turn_count
                 return result
 
         # Max turns reached
-        logger.error("Max turns reached without completion", max_turns=max_turns)
-        result["error"] = f"Agent reached maximum {max_turns} turns without completing submission"
+        logger.error("Max turns reached without completion",
+                     max_turns=max_turns, cumulative_turn=turn_offset + max_turns)
+        result["error"] = f"Agent reached maximum {turn_offset + max_turns} turns without completing submission"
+        result["turns_used"] = turn_count
         return result
 
     except Exception as e:
         logger.error("Claim submission loop failed", error=str(e), exc_info=True)
         result["error"] = f"Unexpected error: {str(e)}"
+        result["turns_used"] = turn_count if 'turn_count' in locals() else 0
         return result

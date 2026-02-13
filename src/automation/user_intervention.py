@@ -81,6 +81,55 @@ class UserInterventionManager:
             logger.info("User confirmed login complete")
             return True
 
+    async def wait_for_manual_action(
+        self,
+        instruction: str,
+    ) -> bool:
+        """Wait for user to complete a manual action during claim submission.
+
+        This is used when the agent needs the user to perform an action
+        (like uploading a file) that cannot be automated, then wants to
+        resume the claim submission from where it left off.
+
+        Args:
+            instruction: What the user needs to do
+
+        Returns:
+            True if user confirms action is complete, False if user wants to quit
+        """
+        if self.streamlit_mode:
+            # Streamlit implementation (future)
+            import streamlit as st
+            st.info(f"⏸️  {instruction}")
+            st.info("Click 'Continue' when you've finished.")
+            logger.warning("Streamlit mode not fully implemented for wait_for_manual_action")
+            return True
+        else:
+            # CLI implementation
+            click.echo()
+            click.secho("=" * 60, fg="yellow")
+            click.secho("⏸️  MANUAL ACTION REQUIRED", fg="yellow", bold=True)
+            click.secho("=" * 60, fg="yellow")
+            click.echo()
+            click.echo(instruction)
+            click.echo()
+            click.secho("→ Complete the action described above", fg="cyan")
+            click.secho("→ When done, press Enter to continue", fg="cyan")
+            click.secho("→ Or type 'quit' to abort this claim", fg="red")
+            click.echo()
+
+            user_input = click.prompt("Press Enter to continue or type 'quit'",
+                                       default="", show_default=False)
+
+            if user_input.strip().lower() in ["quit", "exit", "cancel"]:
+                click.echo()
+                click.secho("🛑 User aborted - will prompt for retry/skip/quit...", fg="red")
+                logger.info("User aborted manual action")
+                return False
+
+            logger.info("User confirmed manual action complete")
+            return True
+
     async def prompt_on_error(
         self,
         expense: ExpenseRecord,
