@@ -26,7 +26,7 @@ OPTUM_URL = os.getenv(
     "OPTUM_URL",
     "https://account.optumbank.com/account/expenses/new?expense-type=reimbursement"
 )
-CLAIM_MODEL = os.getenv("CLAIM_MODEL", "claude-sonnet-4-5-20250929")
+CLAIM_MODEL = os.getenv("CLAIM_MODEL", "anthropic.claude-sonnet-4-20250514-v1:0")
 MAX_CLAIM_RETRIES = int(os.getenv("MAX_CLAIM_RETRIES", "3"))
 
 
