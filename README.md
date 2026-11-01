@@ -32,14 +32,14 @@ Edit `.env` with your API key:
 # For Google Gemini (current default: gemini-2.5-flash)
 GEMINI_API_KEY=your_gemini_key_here
 
-# Or for OpenAI (gpt-4o)
+# Or for OpenAI (gpt-6-luna)
 OPENAI_API_KEY=sk-proj-your_key_here
 
 # Or for Anthropic (change MODEL_NAME in src/processors/llm_extractor.py)
 ANTHROPIC_API_KEY=sk-ant-your_key_here
 ```
 
-**Note**: To change the LLM model, edit the `MODEL_NAME` constant in `src/processors/llm_extractor.py`.
+**Note**: To change the LLM model, edit the `MODEL_NAME` constant in `src/processors/llm_extractor.py`. The Anthropic receipt model is `ANTHROPIC_MODEL_NAME` (currently `claude-haiku-5-5`), which is also used for receipt verification via `VERIFICATION_MODEL_NAME`.
 
 ## Environment Configuration
 
@@ -49,12 +49,12 @@ The project uses `.env` for configuration. Copy `.env.example` to `.env` and con
 
 Provide at least one API key:
 
-**For OpenAI models** (gpt-4o, gpt-4o-mini):
+**For OpenAI models** (gpt-6-luna):
 ```env
 OPENAI_API_KEY=sk-proj-your_key_here
 ```
 
-**For Anthropic models** (claude-3-7-sonnet, claude-sonnet-4-5):
+**For Anthropic models** (claude-haiku-5-5, claude-sonnet-5-5):
 ```env
 ANTHROPIC_API_KEY=sk-ant-your_key_here
 ```
@@ -71,9 +71,8 @@ Note: The default model in `llm_extractor.py` is currently `gemini-2.5-flash`. Y
 Configure browser automation for claim filing:
 
 - **`OPTUM_URL`** - Optum Bank claim form URL (default provided)
-- **`CLAIM_MODEL`** - Claude model for browser agent (default: `claude-sonnet-4-5-20250929`)
+- **`CLAIM_MODEL`** - Claude model for browser agent (default: `claude-sonnet-5-5`)
   - Requires `ANTHROPIC_API_KEY`
-  - Apple employees can use internal gateway: `anthropic.claude-sonnet-4-20250514-v1:0`
 - **`MAX_CLAIM_RETRIES`** - Retry attempts per claim on error (default: 3)
 - **`BROWSER_HEADLESS`** - Run browser invisibly: `true`/`false` (default: false)
 - **`INTERVENTION_TIMEOUT`** - Wait time for manual actions in seconds (default: 300)
@@ -97,11 +96,11 @@ uv run python main.py process /path/to/receipts
 ### 4. Check Status
 
 ```bash
-# Check expense status
-uv run python -m src.main status
+# Check expense status (folder uses its expenses.csv)
+uv run python -m src.main status /path/to/receipts
 
-# Or with custom CSV location
-uv run python -m src.main status --csv /path/to/expenses.csv
+# Or point directly at a CSV file
+uv run python -m src.main status /path/to/expenses.csv
 ```
 
 ## Usage
@@ -121,17 +120,20 @@ uv run python -m src.main process [PATH_TO_PDF_FILE]
 uv run python -m src.main process [RECEIPTS_FOLDER] --csv /path/to/expenses.csv
 uv run python -m src.main process [PATH_TO_PDF_FILE] --csv /path/to/custom.csv
 
-# Submit unclaimed expenses (Phase 2)
-uv run python -m src.main submit
+# Submit unclaimed expenses (Phase 2) - PATH is required
+uv run python -m src.main submit /path/to/receipts
+
+# Or point directly at a CSV file
+uv run python -m src.main submit /path/to/expenses.csv
 
 # Run full workflow (process + submit)
 uv run python -m src.main run [RECEIPTS_FOLDER or PATH_TO_PDF_FILE]
 
-# Show expense status
-uv run python -m src.main status
+# Show expense status (folder uses its expenses.csv)
+uv run python -m src.main status /path/to/receipts
 
-# Or specify CSV location
-uv run python -m src.main status --csv /path/to/expenses.csv
+# Or point directly at a CSV file
+uv run python -m src.main status /path/to/expenses.csv
 ```
 
 ### Receipt Processing
@@ -273,7 +275,7 @@ This implementation adapts the browser-use pattern from Anthropic's browser-use-
 
 **Simplified Mode** (default):
 ```bash
-uv run python -m src.main submit
+uv run python -m src.main submit /path/to/receipts
 ```
 - Submits amount + date only
 - No provider search, no file upload
@@ -282,7 +284,7 @@ uv run python -m src.main submit
 
 **Full Mode**:
 ```bash
-uv run python -m src.main submit --full-flow
+uv run python -m src.main submit /path/to/receipts --full-flow
 ```
 - Includes provider search and address verification
 - Agent requests user to upload receipt file manually
@@ -326,12 +328,6 @@ uv run python -m src.main submit --full-flow
 - Scaler automatically detects and translates coordinates
 - Based on documented Anthropic image processing dimensions
 
-**Apple Internal Gateway**:
-- Set `CLAIM_MODEL=anthropic.claude-sonnet-4-20250514-v1:0` in .env
-- Acquires auth token via `appleconnect getToken`
-- Uses `https://floodgate.g.apple.com/api/anthropic` endpoint
-- Automatic SSL verification bypass for internal infrastructure
-
 See `src/automation/` for implementation details.
 
 ## Development
@@ -352,7 +348,6 @@ See `src/automation/` for implementation details.
 - State tracking and retry logic ✓
 - Two-mode workflow support ✓
 - Coordinate scaling for vision accuracy ✓
-- Apple internal gateway support ✓
 
 ## Requirements
 

@@ -74,12 +74,11 @@ OPTUM_URL=https://account.optumbank.com/account/expenses/new?expense-type=reimbu
 
 **CLAIM_MODEL**:
 ```env
-CLAIM_MODEL=claude-sonnet-4-5-20250929
+CLAIM_MODEL=claude-sonnet-5-5
 ```
 - LLM model for browser agent
 - Requires ANTHROPIC_API_KEY
 - Alternatives: Any Claude Sonnet 4+ model
-- Apple internal gateway: `anthropic.claude-sonnet-4-20250514-v1:0`
 
 **MAX_CLAIM_RETRIES**:
 ```env
@@ -115,7 +114,7 @@ INTERVENTION_TIMEOUT=300
 **Receipt Extraction Models**:
 - Currently set in code: `src/processors/llm_extractor.py`
 - `MODEL_NAME = GEMINI_MODEL_NAME` (current default: `"gemini-2.5-flash"`)
-- Alternatives: `OPENAI_MODEL_NAME` (`"gpt-4o-2024-11-20"`), `ANTHROPIC_MODEL_NAME` (`"claude-3-7-sonnet-20250219"`)
+- Alternatives: `OPENAI_MODEL_NAME` (`"gpt-6-luna"`), `ANTHROPIC_MODEL_NAME` (`"claude-haiku-5-5"`, also used as `VERIFICATION_MODEL_NAME`)
 - Requirements: Must support PDF/vision input via `BinaryContent`
 - Set the corresponding API key: `GEMINI_API_KEY`, `OPENAI_API_KEY`, or `ANTHROPIC_API_KEY`
 
@@ -124,26 +123,6 @@ INTERVENTION_TIMEOUT=300
 - Requirements: Strong reasoning, tool use, vision capability
 - Recommended: Claude Sonnet 4+ models
 - Not recommended: Haiku (insufficient reasoning), GPT models (different tool format)
-
-### Apple Internal Gateway
-
-For Apple employees using internal Anthropic gateway:
-
-```env
-CLAIM_MODEL=anthropic.claude-sonnet-4-20250514-v1:0
-```
-
-**How it works**:
-- Model name starting with `anthropic.` triggers gateway mode
-- Automatically calls `/usr/local/bin/appleconnect getToken` for auth
-- Uses `https://floodgate.g.apple.com/api/anthropic` endpoint
-- Bypasses SSL verification (required for internal infrastructure)
-- No external API key required (uses Apple SSO)
-
-**Requirements**:
-- Must be on Apple network
-- Must have `appleconnect` CLI installed
-- Must be authenticated via Apple SSO
 
 See `.env.example` for complete configuration template with comments.
 
@@ -162,8 +141,8 @@ python -m src.main process /path/to/receipts/receipt.pdf
 # Check expense status
 python -m src.main status
 
-# Submit claims (Phase 2)
-python -m src.main submit
+# Submit claims (Phase 2) - PATH is required
+python -m src.main submit /path/to/receipts
 
 # Run full workflow
 python -m src.main run /path/to/receipts
@@ -262,7 +241,6 @@ The `src/automation/` code adapts the browser-use pattern from Anthropic's quick
 - CSV state management integration
 - Retry logic with user decision prompts
 - Two-mode workflow (simplified vs full)
-- Apple internal gateway support
 
 ### Key Components
 
@@ -321,15 +299,6 @@ The automation follows the Anthropic computer use pattern:
 **Resumable**: `manual_step`, `2fa` (agent continues after user action)
 **Non-Resumable**: `login`, `unexpected_error` (report as failure)
 
-### Apple Internal Gateway
-
-When `CLAIM_MODEL` starts with `anthropic.`:
-- Acquire token via `/usr/local/bin/appleconnect getToken`
-- Use `https://floodgate.g.apple.com/api/anthropic` endpoint
-- Pass `auth_token` instead of `api_key`
-- Disable SSL verification
-- Skip prompt caching beta flag
-
 ### Development Patterns
 
 **Adding Browser Action**:
@@ -347,7 +316,7 @@ When `CLAIM_MODEL` starts with `anthropic.`:
 
 **Debugging Agent**:
 ```bash
-uv run python -m src.main submit --log-level DEBUG --log-file debug.log
+uv run python -m src.main --log-level DEBUG --log-file debug.log submit /path/to/receipts
 ```
 - Logs agent text, tool calls, tool results, screenshots, API metadata
 - Look for `[Auto-Scale]` logs for coordinate scaling
@@ -388,7 +357,7 @@ The `ReceiptExtractor` uses pydantic-ai with structured output and sends PDFs as
 ```python
 # Initialize agent
 agent = Agent(
-    MODEL_NAME,  # e.g., "gpt-4o" or "claude-3-7-sonnet-20250219"
+    MODEL_NAME,  # e.g., "gpt-6-luna" or "claude-haiku-5-5"
     output_type=ExtractedExpense,  # Pydantic model
     system_prompt=EXTRACTION_PROMPT,
 )
@@ -433,11 +402,12 @@ The model is configured via the `MODEL_NAME` constant in `src/processors/llm_ext
 
 ```python
 # Model constants - change these to use different models
-ANTHROPIC_MODEL_NAME = "claude-3-7-sonnet-20250219"
-OPENAI_MODEL_NAME = "gpt-4o-2024-11-20"
+ANTHROPIC_MODEL_NAME = "claude-haiku-5-5"
+OPENAI_MODEL_NAME = "gpt-6-luna"
 GEMINI_MODEL_NAME = "gemini-2.5-flash"
 
 MODEL_NAME = GEMINI_MODEL_NAME  # Current default
+VERIFICATION_MODEL_NAME = ANTHROPIC_MODEL_NAME  # Receipt verification model
 ```
 
 To change models:
@@ -450,7 +420,7 @@ To change models:
 Supported models (must have PDF/vision capability):
 - Google Gemini: `gemini-2.5-flash`, `gemini-1.5-pro`
 - OpenAI: `gpt-4o`, `gpt-4o-mini`
-- Anthropic: `claude-3-7-sonnet-20250219`, `claude-3-5-sonnet-20241022`
+- Anthropic: `claude-haiku-5-5`, `claude-sonnet-5-5`, `claude-opus-5-5`
 
 ### Testing with Sample Receipts
 
@@ -467,7 +437,7 @@ Sample receipts are in `/Users/jasompi/Documents/Receipts/2026`:
 - ✅ Phase 2A: Browser infrastructure (browser manager, browser tool)
 - ✅ Phase 2B: Agent system (agent loop, tool collection, message handler)
 - ✅ Phase 2C: Claim orchestration (claim submitter, state tracker, user intervention)
-- ✅ Phase 2D: Advanced features (coordinate scaling, two-mode workflow, Apple gateway)
+- ✅ Phase 2D: Advanced features (coordinate scaling, two-mode workflow)
 
 ## Documentation
 

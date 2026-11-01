@@ -13,8 +13,8 @@ logger = get_logger(__name__)
 
 # Model constants - change these to use different models
 
-ANTHROPIC_MODEL_NAME = "claude-3-7-sonnet-20250219"
-OPENAI_MODEL_NAME = "gpt-4o-2024-11-20"
+ANTHROPIC_MODEL_NAME = "claude-haiku-5-5"
+OPENAI_MODEL_NAME = "gpt-6-luna"
 GEMINI_MODEL_NAME = "gemini-2.5-flash"
 
 MODEL_NAME = GEMINI_MODEL_NAME
