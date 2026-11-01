@@ -4,7 +4,6 @@ Adapted from browser-use-demo sampling loop for the specific use case
 of submitting medical expense claims to Optum Bank.
 """
 
-import os
 from collections.abc import Callable
 from pathlib import Path
 from typing import Optional
@@ -30,98 +29,17 @@ logger = get_logger(__name__)
 PROMPT_CACHING_BETA_FLAG = "prompt-caching-2024-07-31"
 
 
-def _get_apple_auth_token() -> str:
-    """Get auth token from Apple Connect for internal gateway.
-
-    Returns:
-        Auth token string for Apple's Anthropic gateway
-
-    Raises:
-        RuntimeError: If token acquisition fails
-    """
-    logger.info("Acquiring Apple Connect auth token...")
-
-    try:
-        cmd = (
-            '/usr/local/bin/appleconnect getToken '
-            '-C hvys3fcwcteqrvw3qzkvtk86viuoqv '
-            '--token-type=oauth '
-            '--interactivity-type=none '
-            '-E prod '
-            '-G pkce '
-            '-o openid,dsid,accountname,profile,groups'
-        )
-        result = os.popen(cmd).read()
-        token = result.split()[-1] if result.strip() else ""
-
-        if not token:
-            raise RuntimeError(
-                "Failed to get Apple auth token. "
-                "Ensure appleconnect CLI is installed and configured."
-            )
-
-        logger.info("Successfully acquired Apple Connect auth token")
-        return token
-
-    except Exception as e:
-        logger.error("Failed to acquire Apple auth token", error=str(e))
-        raise RuntimeError(
-            f"Failed to authenticate with Apple Connect: {str(e)}. "
-            "Ensure appleconnect CLI is installed and configured."
-        )
-
-
-def _create_anthropic_client(model: str, api_key: str) -> Anthropic:
-    """Create Anthropic client with appropriate configuration.
-
-    Determines whether to use Apple's internal Anthropic gateway or the
-    standard Anthropic API based on the model name prefix.
+def _create_anthropic_client(api_key: str) -> Anthropic:
+    """Create the Anthropic API client.
 
     Args:
-        model: Model name (e.g., "anthropic.claude-sonnet-4-20250514-v1:0"
-               or "claude-sonnet-4-5-20250929")
-        api_key: API key for standard Anthropic API (used if not using Apple gateway)
+        api_key: Anthropic API key
 
     Returns:
         Configured Anthropic client instance
-
-    Raises:
-        RuntimeError: If Apple auth token acquisition fails
     """
-    if model.startswith("anthropic."):
-        # Use Apple internal gateway
-        logger.info(
-            "Using Apple internal Anthropic gateway",
-            model=model,
-            base_url="https://floodgate.g.apple.com/api/anthropic"
-        )
-        auth_token = _get_apple_auth_token()
-
-        # Create HTTP client with SSL verification disabled for internal Apple gateway
-        # This is necessary for connecting to internal Apple infrastructure
-        logger.warning(
-            "SSL verification disabled for Apple internal gateway",
-            reason="Required for internal infrastructure connectivity"
-        )
-        http_client = httpx.Client(verify=False)
-
-        return Anthropic(
-            auth_token=auth_token,
-            base_url="https://floodgate.g.apple.com/api/anthropic",
-            max_retries=4,
-            http_client=http_client
-        )
-    else:
-        # Use standard Anthropic API
-        logger.info(
-            "Using standard Anthropic API",
-            model=model,
-            base_url="https://api.anthropic.com"
-        )
-        return Anthropic(
-            api_key=api_key,
-            max_retries=4
-        )
+    logger.info("Using standard Anthropic API", base_url="https://api.anthropic.com")
+    return Anthropic(api_key=api_key, max_retries=4)
 
 
 async def claim_submission_loop(
@@ -147,7 +65,7 @@ async def claim_submission_loop(
     Args:
         expense: ExpenseRecord containing claim details
         receipt_path: Path to the PDF receipt file
-        model: Model name to use (e.g., "claude-sonnet-4-5-20250929")
+        model: Model name to use (e.g., "claude-sonnet-5-5")
         messages: Initial message history
         browser_tool: Persistent BrowserTool instance
         output_callback: Callback for agent text/tool outputs
@@ -186,7 +104,7 @@ async def claim_submission_loop(
     )
 
     # Initialize client
-    client = _create_anthropic_client(model, api_key)
+    client = _create_anthropic_client(api_key)
     enable_prompt_caching = True
 
     # Add cache control for prompt caching
@@ -228,8 +146,7 @@ async def claim_submission_loop(
                     "tools": tool_collection.to_params(),
                 }
 
-                # Apple gateway doesn't support prompt caching beta flag
-                if enable_prompt_caching and not model.startswith("anthropic."):
+                if enable_prompt_caching:
                     api_kwargs["betas"] = [PROMPT_CACHING_BETA_FLAG]
                     response = client.beta.messages.create(**api_kwargs)
                 else:
